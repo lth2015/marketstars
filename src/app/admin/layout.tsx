@@ -21,10 +21,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <strong className="small muted" style={{ padding: "8px 12px" }}>運営管理（{op.role}）</strong>
         <Link href="/admin">ダッシュボード</Link>
         <Link href="/admin/apps">アプリ管理</Link>
+        <Link href="/admin/submissions">開発者審査</Link>
         <Link href="/admin/taxonomy">分類・絞り込み</Link>
         <Link href="/admin/requests">申込処理</Link>
         <Link href="/admin/subscriptions">契約管理</Link>
         <Link href="/admin/billing">請求記録</Link>
+        <Link href="/admin/reviews">レビュー管理</Link>
         <Link href="/admin/inquiries">お問い合わせ</Link>
         <Link href="/admin/content">コンテンツ</Link>
         <Link href="/admin/audit">監査ログ</Link>

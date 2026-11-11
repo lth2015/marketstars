@@ -208,3 +208,4 @@ table.table { width: 100%; border-collapse: collapse; background: #fff; font-siz
 .btn.nav-toggle { display: none; }
 @media (max-width: 860px) { .btn.nav-toggle { display: inline-flex; } .space-chip { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; } }
 @media (max-width: 520px) { .site-header .bar { gap: 10px; } .logo { font-size: 18px; } .space-chip { max-width: 30vw; padding: 4px 8px; } .user-menu { gap: 6px; } .user-menu .btn-sm { padding: 0 8px; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

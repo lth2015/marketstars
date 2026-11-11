@@ -6,6 +6,8 @@
 - 身份：公共 SSO [lth2015/sso](https://github.com/lth2015/sso)（OIDC code + S256 PKCE，经 Hydra；服务端调用 `/v1/me`、`/v1/tenants`）
 - 部署：GCP 外部 Application LB + GKE Gateway API + GKE + Cloud SQL，见 [docs/deploy.md](docs/deploy.md) 与 [deploy/gcp/README.md](deploy/gcp/README.md)
 
+P1 已包含：信用卡在线支付与自动续费、套餐自助变更、评分评论、开发者自助提交和审核，见 [docs/p1.md](docs/p1.md)。
+
 ## 本地运行
 
 ```bash
@@ -24,6 +26,7 @@ curl -X POST -H "Authorization: Bearer local-job-token" localhost:3000/api/inter
 | - | - | - |
 | 山田 花子 | さくらベーカリー / みなと美容室（owner） | 试用、申请、退订、空间隔离 |
 | 佐藤 健 | さくらベーカリー（成员） | 非 owner 只能「管理者に申し込みを依頼」 |
+| 開発 次郎 | ミライAI合同会社（owner） | `/developer` 开发者提交审核 |
 | 運営 太郎 | MarketStars 運営（运营空间 + OperatorGrant） | `/admin` 运营后台 |
 
 接入公共 SSO：设置 `AUTH_MODE=oidc` 及 `OIDC_*`、`SSO_*` 变量，见 [docs/sso-integration.md](docs/sso-integration.md)。
@@ -33,7 +36,8 @@ curl -X POST -H "Authorization: Bearer local-job-token" localhost:3000/api/inter
 ```bash
 npm run typecheck
 npm test                         # 单元测试：周期计算、搜索归一化、权益、安全校验
-node tests/e2e.mjs               # 端到端验收（需服务已启动、demo 模式、已 seed）
+node tests/e2e.mjs               # P0 端到端验收（需服务已启动、demo 模式、已 seed）
+node tests/e2e-p1.mjs            # P1 端到端验收（重新 seed 后运行）
 ```
 
 ## 目录

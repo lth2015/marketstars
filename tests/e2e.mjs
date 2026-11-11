@@ -83,6 +83,7 @@ let paidSubId;
 await step("A08 paid application stays pending", async () => {
   await page.goto(`${BASE}/apps/sales-insight/apply`);
   await page.locator(".plan-card", { hasText: "プロ" }).getByRole("link", { name: "このプランを申し込む" }).click();
+  await page.getByLabel(/請求書払い/).check();
   await page.getByLabel("MarketStars 利用規約に同意します").check();
   await page.getByLabel("提供会社の利用規約・プライバシーポリシーに同意します").check();
   await page.getByRole("button", { name: "この内容で申し込む" }).click();

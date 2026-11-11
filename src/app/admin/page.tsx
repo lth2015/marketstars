@@ -10,11 +10,14 @@ export default async function AdminHome() {
     prisma.inquiry.count({ where: { status: { not: "closed" } } }),
     prisma.jobLock.findMany(),
   ]);
+  const [submissions, failedCharges] = await Promise.all([prisma.app.count({ where: { reviewStatus: "submitted" } }), prisma.paymentIntent.count({ where: { status: "failed", purpose: "renew" } })]);
   const tiles = [
     { label: "未処理の申込", value: pending, href: "/admin/requests" },
     { label: "有効な契約", value: live, href: "/admin/subscriptions" },
     { label: "公開中アプリ", value: apps, href: "/admin/apps" },
     { label: "未対応のお問い合わせ", value: inquiries, href: "/admin/inquiries" },
+    { label: "開発者審査待ち", value: submissions, href: "/admin/submissions" },
+    { label: "自動更新の決済失敗", value: failedCharges, href: "/admin/subscriptions" },
   ];
   return (
     <div className="stack">

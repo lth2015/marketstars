@@ -32,6 +32,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
   );
 
   if (!s.isOwner) return <Shell><div className="alert alert-warn">お申し込みは空間「{s.tenantName}」のオーナーのみ可能です。オーナーにお申し込みをご依頼ください。</div></Shell>;
+  if (live && (live.status === "trialing" || (live.status === "active" && live.kind === "free"))) redirect(`/my/apps/${live.id}#change`);
   if (live) return <Shell><div className="alert alert-info">この空間ではすでにお申し込み済み、または利用中です。<Link href={`/my/apps/${live.id}`}>契約内容を確認する</Link></div></Shell>;
   if (!app.acceptingNew) return <Shell><div className="alert alert-warn">現在、新規のお申し込みを受け付けていません。</div></Shell>;
 
@@ -74,12 +75,12 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
           <dt>課金単位</dt><dd>1空間あたり／月</dd>
           <dt>料金</dt><dd><strong>{isTrial ? `無料体験中は ¥0（体験後：${priceLabel(plan)}）` : priceLabel(plan)}</strong></dd>
           {isTrial && <><dt>体験期間</dt><dd>{formatJst(now, true)} 〜 {formatJst(addDays(now, plan.trialDays), true)}（{plan.trialDays}日間）</dd></>}
-          <dt>お支払い方法</dt><dd>{paid ? "請求書払い（銀行振込）※運営からご案内します" : "お支払いは発生しません"}</dd>
+          <dt>お支払い方法</dt><dd>{paid ? "クレジットカード（即時開始・自動更新）または請求書払い（運営確認後に開始）" : "お支払いは発生しません"}</dd>
           <dt>処理の流れ</dt>
           <dd>
             {isTrial && "お申し込み後すぐに利用を開始できます。"}
             {!paid && !isTrial && "お申し込み後すぐに利用を開始できます。停止はいつでも可能です。"}
-            {paid && "お申し込み後は「申込中」となります。運営が契約内容とお支払いを確認した時点で利用開始となり、その時刻から1か月が利用期間です。お申し込みはお支払い完了ではありません。"}
+            {paid && "カード払いは決済完了時点から利用開始となり、1か月ごとに自動更新されます（いつでも停止可）。請求書払いは「申込中」となり、運営が入金を確認した時点から1か月が利用期間です。お申し込みはお支払い完了ではありません。"}
           </dd>
         </dl>
         {isTrial && <div className="alert alert-ok" style={{ margin: 0 }}>{t.noAutoCharge}</div>}

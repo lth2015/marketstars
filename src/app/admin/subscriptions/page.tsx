@@ -13,7 +13,7 @@ export default async function Subs({ searchParams }: { searchParams: Promise<{ m
       ...(sp.q ? { OR: [{ tenantName: { contains: sp.q } }, { tenantId: { contains: sp.q } }, { app: { name: { contains: sp.q } } }] } : {}),
       NOT: { tenantId: { startsWith: "synthetic-" } },
     },
-    include: { app: true }, orderBy: { updatedAt: "desc" }, take: 100,
+    include: { app: true, scheduledPlan: true }, orderBy: { updatedAt: "desc" }, take: 100,
   });
   const ret = `/admin/subscriptions${sp.q || sp.status ? `?${new URLSearchParams({ ...(sp.q ? { q: sp.q } : {}), ...(sp.status ? { status: sp.status } : {}) })}` : ""}`;
   return (
@@ -32,9 +32,9 @@ export default async function Subs({ searchParams }: { searchParams: Promise<{ m
           <tr key={s.id}>
             <td><strong>{s.tenantName}</strong><div className="small muted">{s.app.name}</div></td>
             <td><StatusBadge status={s.status} />{s.suspendedReason && <div className="small muted">{s.suspendedReason}</div>}</td>
-            <td>{s.planNameSnapshot}<div className="small muted">{s.kind} ・ {yen(s.priceJpySnapshot)}</div></td>
+            <td>{s.planNameSnapshot}<div className="small muted">{s.kind} ・ {yen(s.priceJpySnapshot)} ・ {s.paymentMode === "card" ? `カード${s.autoRenew ? "・自動更新" : ""}` : "請求書"}</div>{s.lastChargeError && <div className="small" style={{ color: "var(--danger)" }}>{s.lastChargeError}</div>}</td>
             <td className="small">{s.status === "trialing" ? `〜${formatJst(s.trialEndsAt, true)}` : s.currentPeriodEnd ? `${formatJst(s.currentPeriodStart)}〜${formatJst(s.currentPeriodEnd, true)}` : "—"}{s.cancelAt && <div>解約 {formatJst(s.cancelAt, true)}</div>}</td>
-            <td><SubOps sub={s} ret={ret} /></td>
+            <td><SubOps sub={s} amount={s.scheduledPlan?.priceJpy ?? s.priceJpySnapshot} ret={ret} /></td>
           </tr>
         ))}</tbody>
       </table></div>

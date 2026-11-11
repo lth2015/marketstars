@@ -7,7 +7,7 @@ import { subscriptionOpAction } from "../actions";
 
 export default async function Requests({ searchParams }: { searchParams: Promise<{ msg?: string; error?: string }> }) {
   const sp = await searchParams;
-  const pending = await prisma.subscription.findMany({ where: { status: "pending" }, include: { app: true, request: true }, orderBy: { createdAt: "asc" } });
+  const pending = await prisma.subscription.findMany({ where: { OR: [{ status: "pending" }, { status: "trialing", scheduledPlanVersionId: { not: null } }] }, include: { app: true, request: true, scheduledPlan: true }, orderBy: { createdAt: "asc" } });
   const recent = await prisma.subscription.findMany({ where: { kind: "paid", status: { in: ["rejected", "withdrawn"] } }, include: { app: true, request: true }, orderBy: { updatedAt: "desc" }, take: 20 });
   return (
     <div className="stack">
@@ -19,7 +19,7 @@ export default async function Requests({ searchParams }: { searchParams: Promise
         <div key={s.id} className="panel">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <strong>{s.app.name}</strong> ／ {s.planNameSnapshot} ／ {yen(s.priceJpySnapshot)}／月
+              <strong>{s.app.name}</strong> ／ {s.scheduledPlan ? `${s.scheduledPlan.name}（無料体験から切り替え）` : s.planNameSnapshot} ／ {yen(s.scheduledPlan?.priceJpy ?? s.priceJpySnapshot)}／月 {s.paymentMode === "card" && <span className="tag">カード決済待ち（運営の確認不要）</span>}{s.status === "trialing" && <span className="tag tag-trial">体験終了 {formatJst(s.trialEndsAt, true)} までに確認</span>}
               <div className="small muted">空間：{s.tenantName}（{s.tenantId}）・申込者：{s.request?.requestedByName}・申込日時：{formatJst(s.createdAt, true)}・規約版 {s.request?.termsVersion}{s.internalTest ? " ・ 社内テスト" : ""}</div>
               {s.request?.contactNote && <div className="small" style={{ marginTop: 6 }}>連絡事項：{s.request.contactNote}</div>}
               <form action={subscriptionOpAction} className="row" style={{ marginTop: 8 }}>
@@ -28,7 +28,7 @@ export default async function Requests({ searchParams }: { searchParams: Promise
                 <button className="btn btn-ghost btn-sm">メモ保存</button>
               </form>
             </div>
-            <SubOps sub={s} ret="/admin/requests" />
+            <SubOps sub={s} amount={s.scheduledPlan?.priceJpy ?? s.priceJpySnapshot} ret="/admin/requests" />
           </div>
         </div>
       ))}
