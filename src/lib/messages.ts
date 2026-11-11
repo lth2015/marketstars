@@ -1,0 +1,25 @@
+// 面向客户的界面文案集中管理（默认日语），便于后续多语言。
+export const t = {
+  brandTagline: "お店の仕事に、ちょうどいいAI。",
+  heroLead: "販促、接客、分析、事務まで。店舗のための AI アプリを探して、すぐに試せます。",
+  searchPlaceholder: "アプリ名や、解決したいことを検索",
+  nav: { home: "ホーム", apps: "アプリ一覧", trial: "無料体験", ranking: "ランキング", myApps: "マイアプリ", help: "ヘルプ" },
+  login: "ログイン",
+  signup: "新規登録",
+  logout: "ログアウト",
+  cta: {
+    login: "ログインして利用する",
+    free: "無料で利用開始",
+    trial: (d: number) => `${d}日間無料で試す`,
+    apply: "利用を申し込む",
+    pending: "申込状況を確認",
+    open: "アプリを開く",
+    trialEnded: "プランを申し込む",
+    notOwner: "管理者に申し込みを依頼",
+    closed: "新規受付停止",
+    suspended: "一時停止中",
+  },
+  noAutoCharge: "無料体験の終了後に自動で課金されることはありません。続けて利用する場合は有料プランをお申し込みください。",
+  perTenant: "1空間あたり／月",
+  aggregating: "集計中",
+};

@@ -1,0 +1,349 @@
+// MarketStars 业务数据模型。用户/租户/成员资格的权威来源是公共 SSO（lth2015/sso），
+// 这里只保存 SSO 稳定 ID 引用及应用目录、权益、账单、审计等业务数据。
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Provider {
+  id         String   @id @default(cuid())
+  name       String
+  websiteUrl String?
+  supportUrl String?
+  supportEmail String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  apps       App[]
+}
+
+model Category {
+  id        String @id @default(cuid())
+  slug      String @unique
+  name      String
+  sortOrder Int    @default(0)
+  apps      App[]
+}
+
+model Industry {
+  id        String @id @default(cuid())
+  slug      String @unique
+  name      String
+  sortOrder Int    @default(0)
+  apps      App[]
+}
+
+model IntegrationTag {
+  id        String @id @default(cuid())
+  slug      String @unique
+  name      String
+  sortOrder Int    @default(0)
+  apps      App[]
+}
+
+model App {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  status           String    @default("draft") // draft | published | archived
+  acceptingNew     Boolean   @default(true)
+  suspendedReason  String?   @db.Text // 事故暂停（应用级）
+  internalTest     Boolean   @default(false)
+  providerId       String
+  provider         Provider  @relation(fields: [providerId], references: [id])
+  name             String
+  tagline          String    @db.VarChar(400)
+  tags             String    @default("") @db.VarChar(500)
+  searchText       String    @default("") @db.Text
+  iconUrl          String?   @db.VarChar(1000)
+  screenshots      Json?
+  overview         Json?
+  launchUrl        String?   @db.VarChar(1000)
+  integrationType  String    @default("external") // sso_integrated | external
+  launchClientId   String?   @unique
+  supportChannels  Json?
+  privacyUrl       String?   @db.VarChar(1000)
+  termsUrl         String?   @db.VarChar(1000)
+  version          String?
+  recommendWeight  Int       @default(0)
+  minMonthlyPrice  Int?
+  hasFreePlan      Boolean   @default(false)
+  hasTrial         Boolean   @default(false)
+  maxTrialDays     Int       @default(0)
+  draft            Json?
+  firstPublishedAt DateTime?
+  contentUpdatedAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  categories       Category[]
+  industries       Industry[]
+  integrationTags  IntegrationTag[]
+  plans            PlanVersion[]
+  releases         AppRelease[]
+  subscriptions    Subscription[]
+  cases            ContentEntry[]
+  inquiries        Inquiry[]
+  ranking          RankingEntry[]
+
+  @@index([status, firstPublishedAt])
+}
+
+model AppRelease {
+  id          String   @id @default(cuid())
+  appId       String
+  app         App      @relation(fields: [appId], references: [id])
+  number      Int
+  snapshot    Json
+  publishedBy String
+  createdAt   DateTime @default(now())
+
+  @@unique([appId, number])
+}
+
+/// 发布后不可变的价格版本；修改套餐生成新版本并停用旧版本。
+model PlanVersion {
+  id                       String   @id @default(cuid())
+  appId                    String
+  app                      App      @relation(fields: [appId], references: [id])
+  planKey                  String
+  version                  Int      @default(1)
+  current                  Boolean  @default(true)
+  name                     String
+  priceType                String // free | monthly | contact
+  priceJpy                 Int      @default(0) // 含税整数日元 / 每租户每月
+  trialDays                Int      @default(0)
+  includes                 String   @default("") @db.Text
+  limits                   String   @default("") @db.Text
+  externalContractRequired Boolean  @default(false)
+  sortOrder                Int      @default(0)
+  createdAt                DateTime @default(now())
+  subscriptions            Subscription[]
+
+  @@unique([appId, planKey, version])
+  @@index([appId, current])
+}
+
+/// 租户级应用订阅/权益。liveKey 在 pending/trialing/active/cancel_scheduled/suspended 时为
+/// "tenantId:appId"，借助唯一约束保证同租户同应用最多一份有效申请/订阅。
+model Subscription {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  tenantName         String
+  appId              String
+  app                App       @relation(fields: [appId], references: [id])
+  planVersionId      String
+  plan               PlanVersion @relation(fields: [planVersionId], references: [id])
+  kind               String // free | trial | paid
+  status             String // pending | trialing | active | cancel_scheduled | expired | canceled | suspended | rejected | withdrawn
+  liveKey            String?   @unique
+  priceJpySnapshot   Int
+  planNameSnapshot   String
+  startedAt          DateTime?
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAt           DateTime?
+  endedAt            DateTime?
+  suspendedReason    String?   @db.Text
+  statusBeforeSuspend String?
+  internalTest       Boolean   @default(false)
+  createdBy          String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  request            ApplicationRequest?
+  periods            SubscriptionPeriod[]
+  billing            BillingRecord[]
+
+  @@index([tenantId, status])
+  @@index([appId, status])
+}
+
+model ApplicationRequest {
+  id              String       @id @default(cuid())
+  subscriptionId  String       @unique
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  tenantId        String
+  requestedBy     String
+  requestedByName String       @default("")
+  idempotencyKey  String       @unique
+  termsVersion    String
+  agreedAt        DateTime
+  contactNote     String?      @db.Text
+  operatorNote    String?      @db.Text
+  decidedBy       String?
+  decidedAt       DateTime?
+  createdAt       DateTime     @default(now())
+}
+
+model TrialUsage {
+  id        String   @id @default(cuid())
+  tenantId  String
+  appId     String
+  startedAt DateTime @default(now())
+
+  @@unique([tenantId, appId])
+}
+
+model SubscriptionPeriod {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  kind           String // trial | free | paid
+  startsAt       DateTime
+  endsAt         DateTime?
+  billingRecordId String?     @unique
+  createdAt      DateTime     @default(now())
+
+  @@index([subscriptionId])
+}
+
+model BillingRecord {
+  id             String       @id @default(cuid())
+  tenantId       String
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  amountJpy      Int
+  status         String // due | paid | refunded | void
+  periodStart    DateTime
+  periodEnd      DateTime
+  receiptRef     String?
+  paidAmountJpy  Int?
+  paidAt         DateTime?
+  confirmedBy    String?
+  refundedAt     DateTime?
+  note           String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([subscriptionId, periodStart])
+  @@unique([receiptRef])
+  @@index([tenantId])
+}
+
+model Inquiry {
+  id        String   @id @default(cuid())
+  publicNo  String   @unique
+  appId     String?
+  app       App?     @relation(fields: [appId], references: [id])
+  type      String
+  name      String
+  email     String
+  company   String?
+  tenantId  String?
+  userId    String?
+  message   String   @db.Text
+  status    String   @default("open") // open | in_progress | closed
+  assignee  String?
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContentEntry {
+  id        String   @id @default(cuid())
+  kind      String // help | case | terms | privacy | topic
+  slug      String
+  title     String
+  summary   String?  @db.Text
+  body      String   @db.Text
+  appId     String?
+  app       App?     @relation(fields: [appId], references: [id])
+  version   String   @default("1")
+  published Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, slug])
+}
+
+model OperatorGrant {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  role      String   @default("operator") // admin | operator
+  active    Boolean  @default(true)
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorType  String // user | operator | system
+  tenantId   String?
+  objectType String
+  objectId   String
+  action     String
+  fromState  String?
+  toState    String?
+  reason     String?  @db.Text
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([objectType, objectId])
+  @@index([createdAt])
+}
+
+/// 服务端会话。OAuth token 只保存在服务端，浏览器只持有 HttpOnly 会话 Cookie。
+model Session {
+  id            String   @id
+  userId        String
+  userName      String
+  email         String?
+  tenantId      String?
+  tenantName    String?
+  isOwner       Boolean  @default(false)
+  authMode      String // oidc | demo
+  accessToken   String?  @db.Text
+  refreshToken  String?  @db.Text
+  idToken       String?  @db.Text
+  tokenExpiresAt DateTime?
+  csrfToken     String
+  lastVerifiedAt DateTime @default(now())
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuthState {
+  id        String   @id // state
+  verifier  String
+  nonce     String
+  returnTo  String   @default("/")
+  createdAt DateTime @default(now())
+}
+
+/// 一次性应用启动票据（不把 MarketStars token 放在 URL）。
+model LaunchTicket {
+  id        String    @id @default(cuid())
+  codeHash  String    @unique
+  appId     String
+  userId    String
+  userName  String
+  tenantId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model RankingEntry {
+  id         String   @id @default(cuid())
+  appId      String
+  app        App      @relation(fields: [appId], references: [id])
+  rank       Int
+  count      Int
+  computedAt DateTime
+
+  @@index([computedAt])
+}
+
+model JobLock {
+  name     String   @id
+  lockedAt DateTime
+  lastRunAt DateTime?
+  lastResult String?  @db.Text
+}

@@ -1,0 +1,168 @@
+openapi: 3.1.0
+info:
+  title: MarketStars API
+  version: 0.1.0
+  description: |
+    MarketStars 拟建接口（不是 SSO 已有路径）。浏览器端接口使用同源 BFF 的 HttpOnly 会话 Cookie；
+    写入需 X-CSRF-Token（由 GET /api/v1/me 返回）与 Idempotency-Key。接入应用的服务端接口使用
+    HTTP Basic（launch client_id / client_secret）。错误使用 application/problem+json。
+servers:
+  - url: /
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: ms_session }
+    appClient: { type: http, scheme: basic }
+    jobToken: { type: http, scheme: bearer }
+  schemas:
+    Problem:
+      type: object
+      properties: { type: { type: string }, title: { type: string }, status: { type: integer }, detail: { type: string } }
+    Plan:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        version: { type: integer }
+        name: { type: string }
+        price_type: { type: string, enum: [free, monthly, contact] }
+        price_jpy: { type: integer, description: 含税整数日元／每租户每月 }
+        trial_days: { type: integer }
+    AppSummary:
+      type: object
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        tagline: { type: string }
+        provider: { type: string }
+        icon_url: { type: [string, "null"] }
+        categories: { type: array, items: { type: string } }
+        min_monthly_price_jpy: { type: [integer, "null"] }
+        has_free_plan: { type: boolean }
+        has_trial: { type: boolean }
+        max_trial_days: { type: integer }
+        recommended: { type: boolean }
+        first_published_at: { type: [string, "null"], format: date-time }
+        plans: { type: array, items: { $ref: "#/components/schemas/Plan" } }
+    Entitlement:
+      type: object
+      properties:
+        entitled: { type: boolean }
+        status: { type: string, enum: [none, pending, trialing, active, cancel_scheduled, suspended] }
+        kind: { type: [string, "null"], enum: [free, trial, paid, null] }
+        plan_key: { type: [string, "null"] }
+        expires_at: { type: [string, "null"], format: date-time }
+paths:
+  /api/v1/apps:
+    get:
+      summary: 公开目录：搜索、筛选、排序、分页
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: industry, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: integration, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: free, in: query, schema: { type: boolean } }
+        - { name: trial, in: query, schema: { type: boolean } }
+        - { name: recommended, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { type: string, enum: [recommended, new, price], default: recommended } }
+        - { name: per, in: query, schema: { type: integer, enum: [10, 30, 50], default: 30 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  page: { type: integer }
+                  per_page: { type: integer }
+                  pages: { type: integer }
+                  items: { type: array, items: { $ref: "#/components/schemas/AppSummary" } }
+  /api/v1/apps/{slug}:
+    get:
+      summary: 应用详情
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found, content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+  /api/v1/categories:
+    get: { summary: 类别、行业、关联服务, responses: { "200": { description: OK } } }
+  /api/v1/ranking:
+    get:
+      summary: 利用開始ランキング（直近30日新增有效开通租户数）
+      parameters: [{ name: category, in: query, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+  /api/v1/me:
+    get:
+      summary: 当前用户与空间（来自已验证会话）
+      security: [{ session: [] }]
+      responses: { "200": { description: OK }, "401": { description: 未登录 } }
+  /api/v1/my/subscriptions:
+    get:
+      summary: 当前租户的应用订阅
+      security: [{ session: [] }]
+      responses: { "200": { description: OK } }
+    post:
+      summary: 当前租户开始试用、免费开通或提交付费申请
+      description: 租户由会话决定，不接受客户端 tenant_id。价格版本变化返回 409 price_changed。
+      security: [{ session: [] }]
+      parameters:
+        - { name: X-CSRF-Token, in: header, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, pattern: "^[A-Za-z0-9_-]{8,80}$" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app_slug, plan_id, expected_price_jpy, agreed]
+              properties:
+                app_slug: { type: string }
+                plan_id: { type: string }
+                expected_price_jpy: { type: integer }
+                mode: { type: string, enum: [trial, start], default: start }
+                agreed: { type: boolean, const: true }
+      responses:
+        "201": { description: Created }
+        "403": { description: 非 owner 或 CSRF 失败 }
+        "409": { description: exists / trial_used / price_changed }
+        "428": { description: 缺少 Idempotency-Key }
+  /api/v1/launch/exchange:
+    post:
+      summary: 接入应用兑换一次性启动码（60 秒、单次）
+      security: [{ appClient: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
+      responses:
+        "200":
+          description: 身份与权益
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  user_name: { type: string }
+                  tenant_id: { type: string }
+                  tenant_name: { type: string }
+                  app: { type: string }
+                  entitlement: { $ref: "#/components/schemas/Entitlement" }
+        "400": { description: invalid_grant }
+        "401": { description: invalid_client }
+        "403": { description: not_entitled }
+  /api/v1/entitlements/check:
+    post:
+      summary: 接入应用校验租户当前权益
+      security: [{ appClient: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [tenant_id], properties: { tenant_id: { type: string } } } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Entitlement" } } } }
+  /api/healthz:
+    get: { summary: Liveness, responses: { "200": { description: OK } } }
+  /api/readyz:
+    get: { summary: Readiness（检查数据库）, responses: { "200": { description: OK }, "503": { description: DB 不可用 } } }
+  /api/internal/jobs/run:
+    post:
+      summary: 定时任务（不经公共 LB 暴露）
+      security: [{ jobToken: [] }]
+      responses: { "200": { description: OK } }

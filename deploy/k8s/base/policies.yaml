@@ -1,0 +1,42 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: marketstars
+  labels:
+    marketstars.io/phase: prereq
+spec:
+  default:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    logConfig: { enabled: false }
+    config:
+      type: HTTP
+      httpHealthCheck:
+        portSpecification: USE_SERVING_PORT
+        requestPath: /api/readyz
+  targetRef:
+    group: ""
+    kind: Service
+    name: marketstars
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: marketstars
+  labels:
+    marketstars.io/phase: prereq
+spec:
+  default:
+    securityPolicy: marketstars-armor # Cloud Armor policy (same name in each env project)
+    timeoutSec: 30
+    connectionDraining:
+      drainingTimeoutSec: 30
+    logging:
+      enabled: true
+      sampleRate: 1000000 # 100%
+  targetRef:
+    group: ""
+    kind: Service
+    name: marketstars

@@ -1,0 +1,18 @@
+# ClusterIP only. Exposed publicly exclusively through the Gateway/HTTPRoute.
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketstars
+  labels:
+    app.kubernetes.io/name: marketstars
+    marketstars.io/phase: prereq
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: marketstars
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

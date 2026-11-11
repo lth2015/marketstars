@@ -1,0 +1,27 @@
+# Global external Application Load Balancer.
+# - Google-managed certificate via Certificate Manager certificate map.
+# - Reserved global static IP (NamedAddress).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: marketstars
+  labels:
+    marketstars.io/phase: prereq
+  annotations:
+    networking.gke.io/certmap: marketstars-certmap
+spec:
+  gatewayClassName: gke-l7-global-external-managed
+  addresses:
+    - type: NamedAddress
+      value: marketstars-ip
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces: { from: Same }
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces: { from: Same }
