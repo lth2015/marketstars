@@ -15,12 +15,12 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
       <div className="breadcrumb"><Link href="/">ホーム</Link> ／ ランキング</div>
       <h1 style={{ marginTop: 12 }}>利用開始ランキング</h1>
       <p className="muted small">集計方法：直近30日間に新たに利用を開始した空間（店舗）数。無料体験・社内テスト・取り下げ／お申し込み不可は含みません。同じ空間は1アプリにつき1回のみ集計します。1時間ごとに更新。{r.computedAt && `最終集計：${formatJst(r.computedAt, true)}`}</p>
-      <div className="chips" role="tablist" aria-label="カテゴリ">
+      <nav className="chips" aria-label="カテゴリ">
         <Link className="chip" href="/ranking" aria-current={!category ? "page" : undefined} style={!category ? { borderColor: "var(--primary)", color: "var(--primary)" } : undefined}>総合</Link>
         {cats.map((c) => (
           <Link key={c.slug} className="chip" href={`/ranking?category=${c.slug}`} aria-current={category === c.slug ? "page" : undefined} style={category === c.slug ? { borderColor: "var(--primary)", color: "var(--primary)" } : undefined}>{c.name}</Link>
         ))}
-      </div>
+      </nav>
       {r.entries.length < 3 && <div className="alert alert-info">集計中：まだ十分な利用データがありません。現在の件数のみ表示しています。</div>}
       {r.entries.length === 0 ? (
         <div className="empty">このカテゴリのランキングは集計中です。</div>

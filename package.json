@@ -38,6 +38,7 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "autocannon": "^8.0.0",
+    "axe-core": "^4.10.3",
     "prisma": "^6.16.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

@@ -75,7 +75,8 @@ export default async function AppsPage({ searchParams }: { searchParams: Promise
           </form>
         </aside>
 
-        <section aria-live="polite">
+        <section aria-live="polite" aria-labelledby="results-h">
+          <h2 id="results-h" className="sr-only">検索結果</h2>
           <div className="list-toolbar">
             <div className="row">
               <strong>{total.toLocaleString()} 件</strong>

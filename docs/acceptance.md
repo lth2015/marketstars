@@ -169,3 +169,16 @@ Lighthouse（手机端）在改为自托管字体并用 `font-display: optional`
 - **Cloud Storage**：集成测试 2 项（fake-gcs-server），验证上传、读取、内容寻址去重、拒绝伪装文件。CI 的 e2e job 也会执行。
 - **多语言**：`tests/e2e-p7.mjs` 4 项。切换到英文后留在原页面，`<html lang>` 和导航随之变化；访客看到的主按钮、登录后的状态徽章都是英文；能切回日语。
 - 回归 68 项全部通过（MySQL 8）。说明见 `docs/storage-i18n.md`。
+
+## 无障碍审计与 SEO（2026-11-12）
+
+`tests/e2e-p8.mjs` 5 项通过，回归 73 项全部通过（MySQL 8）。
+- **axe-core**（WCAG 2.1 AA + best-practice）：公开页面 9 个、登录后的客户页面 6 个、运营后台 4 个、开发者门户 2 个，**违规 0**。
+- **修复**：
+  - 排行榜分类切换误用 `role="tablist"`（critical），改为普通导航。
+  - 标题层级从 h1 跳到 h3：列表、帮助、登录、开通确认页。
+  - 演示横幅不在任何 landmark 内，改为 `<aside>`。
+- **SEO**：
+  - `robots.txt`：不收录后台、我的页面、API、认证、开发者门户、支付、启动路由。
+  - `sitemap.xml`：只列已发布的应用和帮助页。
+  - 详情页：canonical、OpenGraph，以及 `SoftwareApplication` 的 JSON-LD。价格用当前可申请的最低月费；**只有真实有评论时才输出评分**。JSON-LD 的 script 带 CSP nonce，并转义了 `<`。
