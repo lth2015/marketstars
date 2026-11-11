@@ -51,6 +51,7 @@ export function Footer() {
           <Link href="/contact">お問い合わせ</Link>
           <Link href="/help/terms">利用規約</Link>
           <Link href="/help/privacy">プライバシーポリシー</Link>
+          <Link href="/developer">開発者の方へ</Link>
           <Link href="/api/openapi">API (OpenAPI)</Link>
         </nav>
         <div>© MarketStars</div>

@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { expireDue } from "./subscriptions";
+import { applyScheduledDowngrades, expireDue, renewDue } from "./subscriptions";
 import { computeRanking } from "./catalog";
 
 /** 以 JobLock 行实现跨副本互斥（5 分钟租约），任务本身也是幂等的。 */
@@ -19,6 +19,9 @@ async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | "loc
 }
 
 export async function runJobs() {
+  // 顺序：期末降级 → 自动续费 → 到期处理（未续费成功的才会到期）
+  const downgraded = await withLock("downgrade", () => applyScheduledDowngrades());
+  const renewed = await withLock("renew", () => renewDue());
   const expired = await withLock("expire", () => expireDue());
   const last = await prisma.jobLock.findUnique({ where: { name: "ranking" } });
   const rankingDue = !last?.lastRunAt || Date.now() - last.lastRunAt.getTime() > 55 * 60000;
@@ -26,5 +29,5 @@ export async function runJobs() {
   await prisma.authState.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 3600000) } } });
   await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.launchTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86400000) } } });
-  return { expired, ranking };
+  return { downgraded, renewed, expired, ranking };
 }

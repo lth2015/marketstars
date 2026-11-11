@@ -69,11 +69,11 @@ function shot(color: string, title: string, n: number) {
 
 async function main() {
   await prisma.$transaction([
-    prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
+    prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
     prisma.applicationRequest.deleteMany(), prisma.subscription.deleteMany(), prisma.trialUsage.deleteMany(), prisma.inquiry.deleteMany(),
     prisma.contentEntry.deleteMany(), prisma.appRelease.deleteMany(), prisma.planVersion.deleteMany(), prisma.app.deleteMany(),
     prisma.provider.deleteMany(), prisma.category.deleteMany(), prisma.industry.deleteMany(), prisma.integrationTag.deleteMany(),
-    prisma.operatorGrant.deleteMany(), prisma.auditEvent.deleteMany(), prisma.jobLock.deleteMany(), prisma.session.deleteMany(),
+    prisma.operatorGrant.deleteMany(), prisma.auditEvent.deleteMany(), prisma.jobLock.deleteMany(), prisma.session.deleteMany(), prisma.paymentMethod.deleteMany(),
   ]);
   for (const [i, [slug, name]] of categories.entries()) await prisma.category.create({ data: { slug, name, sortOrder: i } });
   for (const [i, [slug, name]] of industries.entries()) await prisma.industry.create({ data: { slug, name, sortOrder: i } });
@@ -149,6 +149,22 @@ async function main() {
   await prisma.contentEntry.create({ data: { kind: "topic", slug: "start-ai", title: "はじめてのAI活用特集", summary: "販促文づくりからクチコミ返信まで、まず試したい3つのアプリ", body: "pop-writer,review-reply,menu-translator", sortOrder: 0 } });
   const pop = all.find((a) => a.slug === "pop-writer")!;
   await prisma.contentEntry.create({ data: { kind: "case", slug: "pop-writer-demo", appId: pop.id, title: "（デモ用サンプル事例）ベーカリーでのPOP作成", summary: "デモ環境向けのサンプルです。実在の導入事例ではありません。", body: "新商品のPOP文案作成にかかっていた時間を短縮するシナリオのサンプルです。" } });
+
+  // 演示评论（合成空间，测试环境专用）
+  const sample = [
+    ["pop-writer", 5, "POP づくりが早くなりました", "新商品のたびに悩んでいたキャッチコピーが数分で決まるようになりました。"],
+    ["pop-writer", 4, "候補が多くて便利", "トーンを変えて何パターンも出せるのが良いです。たまに手直しが必要です。"],
+    ["review-reply", 4, "返信の下書きに助かっています", "丁寧な言い回しを提案してくれるので、忙しい時間帯でも返信が続けられています。"],
+    ["shift-planner", 3, "設定に少し時間がかかる", "最初の設定は大変でしたが、慣れると毎月のシフト作成が楽になりました。"],
+  ] as const;
+  for (const [i, [slug, rating, title, body]] of sample.entries()) {
+    const a = all.find((x) => x.slug === slug)!;
+    await prisma.review.create({ data: { appId: a.id, tenantId: `synthetic-tenant-${i}`, tenantName: `合成テスト店舗${i}`, userId: `synthetic-user-${i}`, userName: `テスト${i}`, rating, title, body } });
+  }
+  for (const a of all) {
+    const agg = await prisma.review.aggregate({ where: { appId: a.id, status: "published" }, _avg: { rating: true }, _count: true });
+    if (agg._count) await prisma.app.update({ where: { id: a.id }, data: { ratingAvg: Math.round((agg._avg.rating ?? 0) * 10) / 10, ratingCount: agg._count } });
+  }
 
   await prisma.operatorGrant.create({ data: { userId: "demo0000000000000000000000000009", role: "admin", note: "demo operator" } });
   console.log("seeded", apps.length, "apps");

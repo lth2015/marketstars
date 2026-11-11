@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { getSession, isOperator } from "@/lib/session";
+import { getDeveloper } from "@/lib/developer";
 import { liveSubscription } from "@/lib/subscriptions";
 import { computeCta } from "@/lib/cta";
 import { priceLabel } from "@/lib/text";
@@ -10,6 +11,9 @@ import { formatJst } from "@/lib/time";
 import { isNew } from "@/lib/catalog";
 import { PriceText } from "@/components/AppCard";
 import { t } from "@/lib/messages";
+import { canReview, maskName } from "@/lib/reviews";
+import { ReviewForm } from "@/components/ReviewForm";
+import { Stars } from "@/components/Stars";
 
 type Overview = { problem?: string; features?: string[]; prerequisites?: string; dataNeeds?: string; setup?: string[]; limitations?: string };
 type Shot = { url: string; alt: string };
@@ -32,8 +36,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function AppDetail({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> }) {
   const { slug } = await params;
   const session = await getSession();
-  const preview = (await searchParams).preview === "1" && !!(await isOperator(session));
-  const app = await load(slug, preview);
+  const wantPreview = (await searchParams).preview === "1";
+  const dev = wantPreview ? await getDeveloper(session) : null;
+  const isOp = wantPreview && !!(await isOperator(session));
+  let app = await load(slug, wantPreview && (isOp || !!dev));
+  // 开发者只能预览自己提供商的应用
+  if (app && wantPreview && !isOp && app.providerId !== dev?.id && app.status !== "published") app = null;
+  const preview = !!app && wantPreview && (isOp || app.providerId === dev?.id);
   if (!app) notFound();
 
   // 运营预览草稿：用草稿内容覆盖展示
@@ -47,6 +56,9 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
   const lastEnded = session?.tenantId && !live ? await prisma.subscription.findFirst({ where: { tenantId: session.tenantId, appId: app.id }, orderBy: { createdAt: "desc" } }) : null;
   const cta = computeCta({ app, plans: app.plans, session, live, trialUsed, lastEnded });
   const support = (app.supportChannels ?? []) as { type: string; value: string }[];
+  const reviews = await prisma.review.findMany({ where: { appId: app.id, status: "published" }, orderBy: { createdAt: "desc" }, take: 20 });
+  const eligible = await canReview(session, app.id);
+  const mine = session ? await prisma.review.findUnique({ where: { appId_userId: { appId: app.id, userId: session.userId } } }) : null;
 
   const CtaButton = ({ block }: { block?: boolean }) =>
     cta.disabled || !cta.href ? (
@@ -71,7 +83,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
                 {app.categories.map((c) => <Link key={c.slug} className="tag" href={`/apps?category=${c.slug}`}>{c.name}</Link>)}
               </div>
               <h1 style={{ marginTop: 6 }}>{view.name}</h1>
-              <div className="muted">{app.provider.name}</div>
+              <div className="muted">{app.provider.name} <Stars value={app.ratingAvg} count={app.ratingCount} /></div>
               <p style={{ margin: "12px 0 0" }}>{view.tagline}</p>
               <div className="small muted" style={{ marginTop: 8 }}>対象業種：{app.industries.map((i) => i.name).join("・") || "—"} ／ 連携：{app.integrationTags.map((i) => i.name).join("・") || "—"}</div>
               {app.integrationType === "external" && <div className="alert alert-info small" style={{ marginTop: 12, marginBottom: 0 }}>外部サービスです。アプリを開いた後、提供会社のサービスで別途ログインが必要な場合があります。</div>}
@@ -79,7 +91,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
           </div>
 
           <nav className="anchor-nav" aria-label="ページ内">
-            <a href="#overview">概要</a><a href="#plans">料金プラン</a><a href="#cases">導入事例</a><a href="#support">サポート</a>
+            <a href="#overview">概要</a><a href="#plans">料金プラン</a><a href="#reviews">レビュー</a><a href="#cases">導入事例</a><a href="#support">サポート</a>
           </nav>
 
           {shots.length > 0 ? (
@@ -134,6 +146,25 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
             </div>
           </section>
 
+          <section id="reviews" className="section">
+            <div className="section-head"><h2 style={{ margin: 0 }}>レビュー</h2><Stars value={app.ratingAvg} count={app.ratingCount} size={16} /></div>
+            {reviews.length === 0 && <div className="empty small">まだレビューはありません。</div>}
+            <div className="stack">
+              {reviews.map((r) => (
+                <article key={r.id} className="panel">
+                  <div className="row" style={{ justifyContent: "space-between" }}><Stars value={r.rating} count={1} /><span className="small muted">{maskName(r.userName)} ・ {formatJst(r.createdAt)}</span></div>
+                  <h3 style={{ margin: "6px 0" }}>{r.title}</h3>
+                  <p style={{ margin: 0, whiteSpace: "pre-line" }}>{r.body}</p>
+                  {r.replyBody && <div className="alert alert-info small" style={{ margin: "12px 0 0" }}><strong>提供会社からの返信</strong><br />{r.replyBody}</div>}
+                </article>
+              ))}
+            </div>
+            <div style={{ marginTop: 16 }}>
+              {eligible ? <ReviewForm appId={app.id} slug={app.slug} initial={mine ? { rating: mine.rating, title: mine.title, body: mine.body } : undefined} />
+                : <p className="small muted">レビューは、この空間でアプリを利用したことのある方が投稿できます。{mine?.status === "hidden" && "（あなたのレビューは運営により非表示になっています）"}</p>}
+            </div>
+          </section>
+
           <section id="cases" className="section">
             <h2>導入事例</h2>
             {app.cases.length === 0 ? <div className="empty small">公開できる導入事例はまだありません。</div> : app.cases.map((c) => (
@@ -165,7 +196,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
             {live && <div className="small">現在の状態：<span className={`badge st-${live.status}`}>{live.status === "trialing" ? `無料体験中（${formatJst(live.trialEndsAt)}まで）` : live.status === "pending" ? "申込中" : live.status === "cancel_scheduled" ? `解約予定（${formatJst(live.cancelAt)}）` : live.status === "suspended" ? "一時停止中" : "利用中"}</span></div>}
             <div className="cta-main"><CtaButton block /></div>
             {cta.note && <p id="cta-note" className="small muted" style={{ margin: 0 }}>{cta.note}</p>}
-            {live?.status === "trialing" && session?.isOwner && <Link className="btn btn-secondary btn-block" href={`/apps/${app.slug}/apply`}>有料プランを申し込む</Link>}
+            {live && (live.status === "trialing" || (live.status === "active" && live.kind === "free")) && session?.isOwner && app.plans.some((p) => p.priceType === "monthly") && <Link className="btn btn-secondary btn-block" href={`/my/apps/${live.id}#change`}>有料プランに切り替える</Link>}
           </div>
         </aside>
       </div>

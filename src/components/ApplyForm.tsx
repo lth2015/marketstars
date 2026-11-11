@@ -18,6 +18,13 @@ export function ApplyForm(props: { appId: string; planVersionId: string; expecte
       <input type="hidden" name="mode" value={props.mode} />
       <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
       {props.paid && (
+        <fieldset className="form-row" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>お支払い方法</legend>
+          <label className="check" style={{ marginBottom: 6 }}><input type="radio" name="payment" value="card" defaultChecked /> <span>クレジットカード（すぐに利用開始・毎月自動更新）</span></label>
+          <label className="check"><input type="radio" name="payment" value="invoice" /> <span>請求書払い（運営の入金確認後に利用開始）</span></label>
+        </fieldset>
+      )}
+      {props.paid && (
         <div className="form-row">
           <label htmlFor="contactNote">請求書の宛名・ご連絡事項（任意）</label>
           <textarea id="contactNote" name="contactNote" maxLength={2000} placeholder="例：株式会社〇〇 経理部 宛" />

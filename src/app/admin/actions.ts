@@ -1,12 +1,13 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isOperator } from "@/lib/session";
 import { audit } from "@/lib/audit";
-import { buildSearchText, derivePricing } from "@/lib/catalog";
-import { isSafeLaunchUrl } from "@/lib/text";
+import { derivePricing } from "@/lib/catalog";
+import { draftFromForm, publishApp } from "@/lib/publishing";
+import { recomputeRating } from "@/lib/reviews";
 import { BizError, confirmPayment, operatorCancelAtPeriodEnd, rejectApplication, resumeSubscription, suspendSubscription } from "@/lib/subscriptions";
 
 async function requireOperator() {
@@ -18,48 +19,6 @@ async function requireOperator() {
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const back = (path: string, kind: "msg" | "error", text: string): never => redirect(`${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(text)}`);
-
-export type AppDraft = {
-  name: string; tagline: string; tags: string; iconUrl: string | null; screenshots: { url: string; alt: string }[];
-  overview: { problem: string; features: string[]; prerequisites: string; dataNeeds: string; setup: string[]; limitations: string };
-  launchUrl: string | null; integrationType: string; launchClientId: string | null; supportChannels: { type: string; value: string }[];
-  privacyUrl: string | null; termsUrl: string | null; version: string | null; providerId: string;
-  categories: string[]; industries: string[]; integrations: string[];
-};
-
-const okImage = (u: string) => /^https:\/\//.test(u) || /^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(u) || u.startsWith("/");
-
-function draftFromForm(fd: FormData): AppDraft {
-  const lines = (k: string) => str(fd, k).split("\n").map((x) => x.trim()).filter(Boolean);
-  return {
-    name: str(fd, "name"), tagline: str(fd, "tagline"), tags: str(fd, "tags"), iconUrl: str(fd, "iconUrl") || null,
-    screenshots: lines("screenshots").map((l) => { const [url, alt] = l.split("|"); return { url: url.trim(), alt: (alt ?? "").trim() || "スクリーンショット" }; }),
-    overview: { problem: str(fd, "problem"), features: lines("features"), prerequisites: str(fd, "prerequisites"), dataNeeds: str(fd, "dataNeeds"), setup: lines("setup"), limitations: str(fd, "limitations") },
-    launchUrl: str(fd, "launchUrl") || null, integrationType: str(fd, "integrationType") === "sso_integrated" ? "sso_integrated" : "external",
-    launchClientId: str(fd, "launchClientId") || null,
-    supportChannels: [str(fd, "supportEmail") && { type: "email", value: str(fd, "supportEmail") }, str(fd, "supportHours") && { type: "hours", value: str(fd, "supportHours") }].filter(Boolean) as { type: string; value: string }[],
-    privacyUrl: str(fd, "privacyUrl") || null, termsUrl: str(fd, "termsUrl") || null, version: str(fd, "version") || null, providerId: str(fd, "providerId"),
-    categories: fd.getAll("categories").map(String), industries: fd.getAll("industries").map(String), integrations: fd.getAll("integrations").map(String),
-  };
-}
-
-function validateDraft(d: AppDraft, plansCount: number): string[] {
-  const e: string[] = [];
-  if (!d.name) e.push("名称");
-  if (!d.iconUrl) e.push("アイコン");
-  else if (!okImage(d.iconUrl)) e.push("アイコン URL（https のみ）");
-  if (d.screenshots.some((s) => !okImage(s.url))) e.push("スクリーンショット URL（https のみ）");
-  if (!d.tagline) e.push("概要（短文）");
-  if (!d.providerId) e.push("提供会社");
-  if (!d.categories.length) e.push("カテゴリ（1つ以上）");
-  if (!d.overview.problem) e.push("概要（解決できること）");
-  if (plansCount < 1) e.push("有効なプラン");
-  if (!d.supportChannels.length) e.push("サポート方法");
-  if (!d.termsUrl || !d.privacyUrl) e.push("利用規約・プライバシーポリシーのリンク");
-  if (!d.launchUrl || !isSafeLaunchUrl(d.launchUrl)) e.push("アプリ起動 URL（https）");
-  if (d.integrationType === "sso_integrated" && !d.launchClientId) e.push("接入 client ID");
-  return e;
-}
 
 export async function createAppAction(fd: FormData) {
   const op = await requireOperator();
@@ -75,7 +34,11 @@ export async function createAppAction(fd: FormData) {
 export async function saveDraftAction(fd: FormData) {
   const op = await requireOperator();
   const id = str(fd, "id");
+  const prev = await prisma.app.findUniqueOrThrow({ where: { id } });
   const d = draftFromForm(fd);
+  // 保留开发者提出的套餐提案
+  const prevPlans = (prev.draft as { plans?: unknown } | null)?.plans;
+  if (prevPlans) (d as { plans?: unknown }).plans = prevPlans;
   await prisma.app.update({ where: { id }, data: { draft: d as unknown as Prisma.InputJsonValue } });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: id, action: "save_draft" });
   revalidatePath(`/admin/apps/${id}`);
@@ -85,34 +48,36 @@ export async function saveDraftAction(fd: FormData) {
 export async function publishAction(fd: FormData) {
   const op = await requireOperator();
   const id = str(fd, "id");
-  const app = await prisma.app.findUniqueOrThrow({ where: { id }, include: { plans: { where: { current: true } }, provider: true } });
-  const d = app.draft as unknown as AppDraft | null;
-  if (!d) back(`/admin/apps/${id}`, "error", "公開する下書きがありません。");
-  const errors = validateDraft(d!, app.plans.length);
+  const errors = await publishApp(id, op.userId);
   if (errors.length) back(`/admin/apps/${id}`, "error", `公開に必要な項目が不足しています：${errors.join("、")}`);
-  const provider = await prisma.provider.findUniqueOrThrow({ where: { id: d!.providerId } });
-  const pricing = derivePricing(app.plans);
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    const n = await tx.appRelease.count({ where: { appId: id } });
-    await tx.app.update({
-      where: { id },
-      data: {
-        name: d!.name, tagline: d!.tagline, tags: d!.tags, iconUrl: d!.iconUrl, screenshots: d!.screenshots, overview: d!.overview,
-        launchUrl: d!.launchUrl, integrationType: d!.integrationType, launchClientId: d!.integrationType === "sso_integrated" ? d!.launchClientId : null,
-        supportChannels: d!.supportChannels, privacyUrl: d!.privacyUrl, termsUrl: d!.termsUrl, version: d!.version, providerId: d!.providerId,
-        searchText: buildSearchText({ name: d!.name, tagline: d!.tagline, tags: d!.tags, providerName: provider.name }),
-        categories: { set: d!.categories.map((slug) => ({ slug })) }, industries: { set: d!.industries.map((slug) => ({ slug })) }, integrationTags: { set: d!.integrations.map((slug) => ({ slug })) },
-        ...pricing, status: "published", draft: Prisma.DbNull, contentUpdatedAt: now,
-        // NEW 按首次发布时间，不因编辑而刷新
-        firstPublishedAt: app.firstPublishedAt ?? now,
-      },
-    });
-    await tx.appRelease.create({ data: { appId: id, number: n + 1, snapshot: d as unknown as Prisma.InputJsonValue, publishedBy: op.userId } });
-    await audit(tx, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: id, action: "publish", fromState: app.status, toState: "published", data: { release: n + 1 } });
-  });
   revalidatePath("/");
   back(`/admin/apps/${id}`, "msg", "公開しました。");
+}
+
+/** 开发者提交审核：通过即发布；拒绝需填写理由，开发者可修改后再次提交。 */
+export async function submissionDecisionAction(fd: FormData) {
+  const op = await requireOperator();
+  const id = str(fd, "id");
+  if (str(fd, "decision") === "approve") {
+    const errors = await publishApp(id, op.userId, "approve_submission");
+    if (errors.length) back("/admin/submissions", "error", `公開できません：${errors.join("、")}`);
+    back("/admin/submissions", "msg", "承認して公開しました。");
+  }
+  const note = str(fd, "note");
+  if (!note) back("/admin/submissions", "error", "差し戻し理由を入力してください。");
+  await prisma.app.update({ where: { id }, data: { reviewStatus: "rejected", reviewNote: note } });
+  await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: id, action: "reject_submission", reason: note });
+  back("/admin/submissions", "msg", "差し戻しました。");
+}
+
+export async function reviewModerationAction(fd: FormData) {
+  const op = await requireOperator();
+  const id = str(fd, "id");
+  const hide = str(fd, "op") === "hide";
+  const r = await prisma.review.update({ where: { id }, data: { status: hide ? "hidden" : "published", hiddenReason: hide ? str(fd, "reason") || "運営判断" : null } });
+  await recomputeRating(r.appId);
+  await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "review", objectId: id, action: hide ? "hide" : "show", reason: str(fd, "reason") || null });
+  back("/admin/reviews", "msg", hide ? "非表示にしました。" : "再表示しました。");
 }
 
 export async function appFlagAction(fd: FormData) {

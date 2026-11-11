@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CardApp } from "@/lib/catalog";
 import { isNew } from "@/lib/catalog";
 import { yen } from "@/lib/text";
+import { Stars } from "./Stars";
 
 export function PriceText({ app }: { app: Pick<CardApp, "minMonthlyPrice" | "hasFreePlan"> & { plans: { priceType: string }[] } }) {
   if (app.minMonthlyPrice === null) return <span className="price">要問い合わせ</span>;
@@ -22,6 +23,7 @@ export function AppCard({ app }: { app: CardApp }) {
           {badges.length > 0 && <div className="tags" style={{ marginTop: 0, marginBottom: 4 }}>{badges.slice(0, 2)}</div>}
           <h3><Link href={`/apps/${app.slug}`}>{app.name}</Link></h3>
           <div className="provider">{app.provider.name}</div>
+          <Stars value={app.ratingAvg} count={app.ratingCount} size={13} />
         </div>
       </div>
       <p className="desc">{app.tagline}</p>

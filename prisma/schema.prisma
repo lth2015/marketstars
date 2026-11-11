@@ -16,6 +16,10 @@ model Provider {
   websiteUrl String?
   supportUrl String?
   supportEmail String?
+  /// 开发者自助：拥有该提供商的 SSO 空间（P1）
+  ownerTenantId String?  @unique
+  contactEmail  String?
+  developerTermsVersion String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   apps       App[]
@@ -74,6 +78,11 @@ model App {
   hasTrial         Boolean   @default(false)
   maxTrialDays     Int       @default(0)
   draft            Json?
+  reviewStatus     String    @default("none") // none | submitted | rejected | approved（开发者提交审核）
+  reviewNote       String?   @db.Text
+  submittedAt      DateTime?
+  ratingAvg        Float?
+  ratingCount      Int       @default(0)
   firstPublishedAt DateTime?
   contentUpdatedAt DateTime?
   createdAt        DateTime  @default(now())
@@ -87,8 +96,10 @@ model App {
   cases            ContentEntry[]
   inquiries        Inquiry[]
   ranking          RankingEntry[]
+  reviews          Review[]
 
   @@index([status, firstPublishedAt])
+  @@index([reviewStatus])
 }
 
 model AppRelease {
@@ -121,6 +132,8 @@ model PlanVersion {
   sortOrder                Int      @default(0)
   createdAt                DateTime @default(now())
   subscriptions            Subscription[]
+  scheduledFor             Subscription[] @relation("ScheduledPlan")
+  paymentIntents           PaymentIntent[]
 
   @@unique([appId, planKey, version])
   @@index([appId, current])
@@ -150,12 +163,21 @@ model Subscription {
   suspendedReason    String?   @db.Text
   statusBeforeSuspend String?
   internalTest       Boolean   @default(false)
+  paymentMode        String    @default("invoice") // invoice | card
+  autoRenew          Boolean   @default(false)
+  paymentMethodId    String?
+  paymentMethod      PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  /// 期末生效的套餐变更（paid），或试用中的付费转换申请
+  scheduledPlanVersionId String?
+  scheduledPlan      PlanVersion? @relation("ScheduledPlan", fields: [scheduledPlanVersionId], references: [id])
+  lastChargeError    String?   @db.Text
   createdBy          String
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   request            ApplicationRequest?
   periods            SubscriptionPeriod[]
   billing            BillingRecord[]
+  paymentIntents     PaymentIntent[]
 
   @@index([tenantId, status])
   @@index([appId, status])
@@ -346,4 +368,70 @@ model JobLock {
   lockedAt DateTime
   lastRunAt DateTime?
   lastResult String?  @db.Text
+}
+
+/// 租户的支付方式（只保存支付服务商的令牌和卡片摘要，不保存卡号）。
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  tenantId    String
+  provider    String // mockpay | stripe ...
+  providerRef String   @unique
+  brand       String
+  last4       String
+  expMonth    Int
+  expYear     Int
+  createdBy   String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  subscriptions Subscription[]
+  intents     PaymentIntent[]
+
+  @@index([tenantId])
+}
+
+/// 一次收款意图。idempotencyKey 唯一，保证同一周期/同一操作只扣款一次。
+model PaymentIntent {
+  id              String       @id @default(cuid())
+  tenantId        String
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  purpose         String // activate | renew | upgrade | convert_trial
+  planVersionId   String
+  plan            PlanVersion  @relation(fields: [planVersionId], references: [id])
+  amountJpy       Int
+  status          String       @default("requires_payment") // requires_payment | processing | succeeded | failed | canceled
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  providerChargeId String?     @unique
+  failureReason   String?      @db.Text
+  attempts        Int          @default(0)
+  idempotencyKey  String       @unique
+  createdBy       String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([subscriptionId])
+}
+
+/// 用户评分评论（P1）：利用过该应用的空间成员可发表，每人每应用一条。
+model Review {
+  id        String   @id @default(cuid())
+  appId     String
+  app       App      @relation(fields: [appId], references: [id])
+  tenantId  String
+  tenantName String
+  userId    String
+  userName  String
+  rating    Int
+  title     String
+  body      String   @db.Text
+  status    String   @default("published") // published | hidden
+  hiddenReason String?
+  replyBody String?  @db.Text
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([appId, userId])
+  @@index([appId, status])
 }

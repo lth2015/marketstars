@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MarketStars API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     MarketStars 拟建接口（不是 SSO 已有路径）。浏览器端接口使用同源 BFF 的 HttpOnly 会话 Cookie；
     写入需 X-CSRF-Token（由 GET /api/v1/me 返回）与 Idempotency-Key。接入应用的服务端接口使用
@@ -157,6 +157,28 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [tenant_id], properties: { tenant_id: { type: string } } } } } }
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Entitlement" } } } }
+  /api/v1/payments/webhook:
+    post:
+      summary: 支付服务商异步通知（charge.succeeded / charge.failed）
+      description: 签名为 hex(HMAC-SHA256(PAYMENT_WEBHOOK_SECRET, rawBody))，放在 X-Payment-Signature。结算幂等。
+      parameters:
+        - { name: X-Payment-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, intent_id]
+              properties:
+                type: { type: string, enum: [charge.succeeded, charge.failed] }
+                intent_id: { type: string }
+                charge_id: { type: string }
+                reason: { type: string }
+      responses:
+        "200": { description: 已接收 }
+        "401": { description: 签名无效 }
+        "409": { description: 订阅状态已变化，无法结算 }
   /api/healthz:
     get: { summary: Liveness, responses: { "200": { description: OK } } }
   /api/readyz:
