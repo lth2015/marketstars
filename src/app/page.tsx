@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { cardInclude, getRanking, publicAppWhere } from "@/lib/catalog";
 import { AppCard } from "@/components/AppCard";
-import { t } from "@/lib/messages";
+import { getMessages } from "@/lib/messages";
 
 export default async function Home() {
+  const t = await getMessages();
   const [recommended, latest, categories, ranking, topics, help] = await Promise.all([
     prisma.app.findMany({ where: { ...publicAppWhere, recommendWeight: { gt: 0 } }, include: cardInclude, orderBy: [{ recommendWeight: "desc" }, { firstPublishedAt: "desc" }, { id: "asc" }], take: 6 }),
     prisma.app.findMany({ where: publicAppWhere, include: cardInclude, orderBy: [{ firstPublishedAt: "desc" }, { id: "asc" }], take: 6 }),
@@ -25,7 +26,7 @@ export default async function Home() {
           <p>{t.heroLead}</p>
           <form action="/apps" className="big-search" role="search">
             <input name="q" placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} />
-            <button type="submit">検索</button>
+            <button type="submit">{t.search}</button>
           </form>
         </div>
       </section>

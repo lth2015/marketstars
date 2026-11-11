@@ -23,6 +23,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "@fontsource/noto-sans-jp": "^5.2.8",
+    "@google-cloud/storage": "^7.17.1",
     "@prisma/client": "^6.16.2",
     "jose": "^6.1.0",
     "next": "^15.5.4",

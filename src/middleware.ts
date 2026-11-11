@@ -25,6 +25,8 @@ export function middleware(req: NextRequest) {
   const reqHeaders = new Headers(req.headers);
   reqHeaders.set("x-nonce", nonce);
   reqHeaders.set("x-request-id", requestId);
+  // 供服务端组件得知当前路径（例如语言切换后回到原页面）
+  reqHeaders.set("x-pathname", req.nextUrl.pathname + req.nextUrl.search);
   reqHeaders.set("content-security-policy", csp);
   const res = NextResponse.next({ request: { headers: reqHeaders } });
   res.headers.set("content-security-policy", csp);

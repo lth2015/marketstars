@@ -81,6 +81,12 @@ jobs:
       # 只下载 Chromium，不走 apt（runner 预装了 Chrome，运行库已具备；避免 apt 源不可用时整个 job 失败）
       - run: npm install --no-save playwright@1.63.0 && npx playwright install chromium
       - run: npx prisma migrate deploy
+      - name: Cloud Storage adapter against fake-gcs-server
+        run: |
+          docker run -d --name fakegcs -p 127.0.0.1:4443:4443 fsouza/fake-gcs-server:1.52.2 -scheme http -port 4443 -public-host 127.0.0.1:4443 -external-url http://127.0.0.1:4443
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4443/storage/v1/b >/dev/null && break; sleep 1; done
+          curl -fsS -X POST -H 'content-type: application/json' -d '{"name":"ms-assets"}' http://127.0.0.1:4443/storage/v1/b >/dev/null
+          STORAGE_EMULATOR_HOST=http://127.0.0.1:4443 GCS_ASSETS_BUCKET=ms-assets GCS_PUBLIC_BASE_URL=http://127.0.0.1:4443 npx vitest run tests/integration
       - run: npm run build
       - name: Start MarketStars (demo mode)
         run: |

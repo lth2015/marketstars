@@ -14,12 +14,39 @@ function sniff(b: Buffer): string | null {
 
 export class UploadError extends Error {}
 
+const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+/**
+ * 存储适配：ASSET_STORAGE=db（默认，演示/测试，存数据库，经 /api/assets 提供）
+ *          ASSET_STORAGE=gcs（生产：Cloud Storage 公开读 bucket，内容寻址对象名，长缓存）
+ */
+async function putGcs(buf: Buffer, type: string, sha: string) {
+  const { Storage } = await import("@google-cloud/storage");
+  const bucket = process.env.GCS_ASSETS_BUCKET;
+  if (!bucket) throw new Error("GCS_ASSETS_BUCKET is not configured");
+  // 本地测试可用 STORAGE_EMULATOR_HOST 指向 fake-gcs-server；生产通过 Workload Identity 认证
+  const storage = new Storage();
+  const name = `assets/${sha}.${EXT[type]}`;
+  const obj = storage.bucket(bucket).file(name);
+  const [exists] = await obj.exists();
+  if (!exists) await obj.save(buf, { resumable: false, contentType: type, metadata: { cacheControl: "public, max-age=31536000, immutable" } });
+  const base = (process.env.GCS_PUBLIC_BASE_URL ?? "https://storage.googleapis.com").replace(/\/$/, "");
+  return `${base}/${bucket}/${name}`;
+}
+
 export async function saveImage(file: File, owner: { type: "provider" | "operator"; id: string }) {
   if (file.size > MAX) throw new UploadError(`${file.name}：2MB 以下の画像にしてください。`);
   const buf = Buffer.from(await file.arrayBuffer());
   const type = sniff(buf);
   if (!type) throw new UploadError(`${file.name}：PNG / JPEG / WebP のみアップロードできます。`);
-  const a = await prisma.asset.create({ data: { ownerType: owner.type, ownerId: owner.id, contentType: type, size: buf.length, sha256: crypto.createHash("sha256").update(buf).digest("hex"), data: buf } });
+  const sha = crypto.createHash("sha256").update(buf).digest("hex");
+  if (process.env.ASSET_STORAGE === "gcs") {
+    const url = await putGcs(buf, type, sha);
+    // 元数据留档（数据本体在 GCS）
+    await prisma.asset.create({ data: { ownerType: owner.type, ownerId: owner.id, contentType: type, size: buf.length, sha256: sha, data: Buffer.alloc(0) } });
+    return url;
+  }
+  const a = await prisma.asset.create({ data: { ownerType: owner.type, ownerId: owner.id, contentType: type, size: buf.length, sha256: sha, data: buf } });
   return `/api/assets/${a.id}`;
 }
 

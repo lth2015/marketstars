@@ -3,11 +3,12 @@ import type { Metadata } from "next";
 import { facets, listApps, parseListQuery, queryToSearchParams, type ListQuery } from "@/lib/catalog";
 import { AppCard } from "@/components/AppCard";
 import { AutoSubmit, FilterDrawerButton, FilterDrawerClose, PerPageSelect, SortSelect } from "@/components/FilterDrawer";
-import { t } from "@/lib/messages";
+import { getMessages } from "@/lib/messages";
 
 export const metadata: Metadata = { title: "アプリ一覧" };
 
 export default async function AppsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const t = await getMessages();
   const q = parseListQuery(await searchParams);
   const [{ total, items, pages }, f] = await Promise.all([listApps(q), facets()]);
   const reset = (patch: Partial<ListQuery>) => `/apps${queryToSearchParams(q, { ...patch, page: 1 })}`;

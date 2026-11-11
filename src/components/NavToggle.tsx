@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-export function NavToggle() {
+export function NavToggle({ label = "メニュー" }: { label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <button
@@ -14,7 +14,7 @@ export function NavToggle() {
         document.querySelector(".site-header")?.classList.toggle("nav-open");
       }}
     >
-      メニュー
+      {label}
     </button>
   );
 }

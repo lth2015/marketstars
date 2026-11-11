@@ -7,7 +7,7 @@
 - 部署：GCP 外部 Application LB + GKE Gateway API + GKE + Cloud SQL，见 [docs/deploy.md](docs/deploy.md) 与 [deploy/gcp/README.md](deploy/gcp/README.md)
 
 P1 已包含：信用卡在线支付与自动续费、套餐自助变更、评分评论、开发者自助提交和审核，见 [docs/p1.md](docs/p1.md)。
-后续阶段已包含：统一模型网关与 SDK、Token 按量收费、供应商自动分账、开发者图片上传，见 [docs/gateway-and-payouts.md](docs/gateway-and-payouts.md)；AgentPay 与防篡改精算台帐，见 [docs/agentpay-ledger.md](docs/agentpay-ledger.md)；事件、通知、邮件与提供商 Webhook，见 [docs/events-webhooks.md](docs/events-webhooks.md)；安全加固见 [docs/security.md](docs/security.md)。
+后续阶段已包含：统一模型网关与 SDK、Token 按量收费、供应商自动分账、开发者图片上传，见 [docs/gateway-and-payouts.md](docs/gateway-and-payouts.md)；AgentPay 与防篡改精算台帐，见 [docs/agentpay-ledger.md](docs/agentpay-ledger.md)；事件、通知、邮件与提供商 Webhook，见 [docs/events-webhooks.md](docs/events-webhooks.md)；安全加固见 [docs/security.md](docs/security.md)；图片存储（Cloud Storage）与多语言基础见 [docs/storage-i18n.md](docs/storage-i18n.md)。
 
 ## 本地运行
 
@@ -44,6 +44,7 @@ node tests/e2e-p3.mjs            # AgentPay / 精算台帐（重新 seed 后运�
 node tests/e2e-p4.mjs            # 事件 / 通知 / 邮件 / 提供商 Webhook（重新 seed 后运行）
 node tests/e2e-p5.mjs            # 运营 KPI / 开发者分析
 node tests/e2e-p6.mjs            # 安全（CSP、限流、请求 ID）；服务需 TRUSTED_PROXY_HOPS=1
+node tests/e2e-p7.mjs            # 多语言（日 / 英）
 node tests/e2e-oidc.mjs          # AUTH_MODE=oidc + 模拟 SSO（自行启动端口 3100 / 4464）
 scripts/e2e-all.sh               # 以上全部（CI 的 e2e job 也用它）
 npx tsx scripts/seed-perf.ts && node tests/perf.mjs   # 性能（200 个应用、50 并发）

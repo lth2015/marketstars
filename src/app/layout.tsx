@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header, Footer } from "@/components/Header";
 import { config } from "@/lib/config";
+import { getLocale, messages } from "@/lib/messages";
 import { FontLoader } from "@/components/FontLoader";
 
 export const metadata: Metadata = {
@@ -11,15 +12,16 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="ja">
+    <html lang={locale}>
       <head>
       </head>
       <body>
         {config.authMode === "demo" && (
           <div style={{ background: "#123A63", color: "#fff", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
-            デモ環境：演示用の合成データと演示ログインを使用しています（本番では共通 SSO を使用）
+            {messages[locale].demoBanner}
           </div>
         )}
         <Header />
