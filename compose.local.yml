@@ -1,0 +1,17 @@
+# 本地联调用 MySQL（与 lth2015/sso 本地栈并行，避免占用 3306）。
+# MarketStars 本身请直接在宿主机运行（npm），因为 SSO 本地栈的端口只绑定宿主机 127.0.0.1，容器内无法访问。
+#   docker compose -f compose.local.yml up -d
+#   DATABASE_URL=mysql://marketstars:marketstars@127.0.0.1:3307/marketstars npx prisma migrate deploy
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: marketstars
+      MYSQL_USER: marketstars
+      MYSQL_PASSWORD: marketstars
+      MYSQL_ROOT_PASSWORD: marketstars-root
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports: ["127.0.0.1:3307:3306"]
+    volumes: [msdata:/var/lib/mysql]
+volumes:
+  msdata: {}

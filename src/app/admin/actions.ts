@@ -10,6 +10,7 @@ import { draftFromForm, publishApp } from "@/lib/publishing";
 import { applyUploads, UploadError } from "@/lib/assets";
 import { recomputeRating } from "@/lib/reviews";
 import { generatePayouts } from "@/lib/payouts";
+import { invalidateCatalog } from "@/lib/cache";
 import { BizError, confirmPayment, operatorCancelAtPeriodEnd, rejectApplication, resumeSubscription, suspendSubscription } from "@/lib/subscriptions";
 
 async function requireOperator() {
@@ -20,7 +21,7 @@ async function requireOperator() {
 }
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
-const back = (path: string, kind: "msg" | "error", text: string): never => redirect(`${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(text)}`);
+const back = (path: string, kind: "msg" | "error", text: string): never => (invalidateCatalog(), redirect(`${path}${path.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(text)}`));
 
 export async function createAppAction(fd: FormData) {
   const op = await requireOperator();

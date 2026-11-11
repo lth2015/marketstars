@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Header, Footer } from "@/components/Header";
 import { config } from "@/lib/config";
+import { FontLoader } from "@/components/FontLoader";
 
 export const metadata: Metadata = {
   title: { default: "MarketStars | お店の仕事に、ちょうどいいAI。", template: "%s | MarketStars" },
@@ -16,7 +17,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
         {config.authMode === "demo" && (
@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Header />
         <main id="main">{children}</main>
         <Footer />
+        <FontLoader />
       </body>
     </html>
   );

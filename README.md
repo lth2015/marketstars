@@ -30,7 +30,7 @@ curl -X POST -H "Authorization: Bearer local-job-token" localhost:3000/api/inter
 | 開発 次郎 | ミライAI合同会社（owner） | `/developer` 开发者提交审核 |
 | 運営 太郎 | MarketStars 運営（运营空间 + OperatorGrant） | `/admin` 运营后台 |
 
-接入公共 SSO：设置 `AUTH_MODE=oidc` 及 `OIDC_*`、`SSO_*` 变量，见 [docs/sso-integration.md](docs/sso-integration.md)。
+接入公共 SSO：设置 `AUTH_MODE=oidc` 及 `OIDC_*`、`SSO_*` 变量，见 [docs/sso-integration.md](docs/sso-integration.md)；本地与真实 SSO 联调见 [docs/local-sso-integration.md](docs/local-sso-integration.md)。
 
 ## 测试
 
@@ -41,6 +41,9 @@ node tests/e2e.mjs               # P0 端到端验收（需服务已启动、dem
 node tests/e2e-p1.mjs            # P1 端到端验收（重新 seed 后运行）
 node tests/e2e-p2.mjs            # 模型网关 / 按量计费 / 分账 / 上传（重新 seed 后运行）
 node tests/e2e-p3.mjs            # AgentPay / 精算台帐（重新 seed 后运行）
+node tests/e2e-oidc.mjs          # AUTH_MODE=oidc + 模拟 SSO（自行启动端口 3100 / 4464）
+scripts/e2e-all.sh               # 以上全部（CI 的 e2e job 也用它）
+npx tsx scripts/seed-perf.ts && node tests/perf.mjs   # 性能（200 个应用、50 并发）
 ```
 
 ## 目录
