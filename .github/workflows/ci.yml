@@ -43,6 +43,51 @@ jobs:
       - run: npm test --if-present
       - run: npm run build
 
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root
+          MYSQL_DATABASE: marketstars
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      # 测试专用的假值（不是密钥）
+      DATABASE_URL: mysql://root:ci-root@127.0.0.1:3306/marketstars
+      MYSQL_ARGS: -h127.0.0.1 -uroot -pci-root
+      APP_BASE_URL: http://localhost:3000
+      SESSION_SECRET: ci-dummy-session-secret-000000000000000000
+      AUTH_MODE: demo
+      ALLOW_DEMO_AUTH: "true"
+      OPERATOR_SSO_TENANT_ID: demo-ops-tenant
+      JOB_TOKEN: local-job-token
+      LAUNCH_CLIENT_SECRET_POP_WRITER: local-pop-writer-secret
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # 只下载 Chromium，不走 apt（runner 预装了 Chrome，运行库已具备；避免 apt 源不可用时整个 job 失败）
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install chromium
+      - run: npx prisma migrate deploy
+      - run: npm run build
+      - name: Start MarketStars (demo mode)
+        run: |
+          nohup npx next start -p 3000 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://localhost:3000/api/readyz && break; sleep 1; done
+      - run: scripts/e2e-all.sh
+      - if: failure()
+        run: tail -200 next.log || true
+
   manifests:
     runs-on: ubuntu-latest
     steps:

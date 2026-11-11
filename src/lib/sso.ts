@@ -15,8 +15,8 @@ type Discovery = {
 };
 
 let discoveryCache: { at: number; d: Discovery } | null = null;
-export async function discovery(): Promise<Discovery> {
-  if (discoveryCache && Date.now() - discoveryCache.at < 10 * 60 * 1000) return discoveryCache.d;
+export async function discovery(opts: { fresh?: boolean } = {}): Promise<Discovery> {
+  if (!opts.fresh && discoveryCache && Date.now() - discoveryCache.at < 10 * 60 * 1000) return discoveryCache.d;
   const url = config.oidc.issuer.replace(/\/$/, "") + "/.well-known/openid-configuration";
   const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error(`discovery ${r.status}`);
@@ -32,7 +32,8 @@ export function pkcePair() {
 }
 
 export async function buildAuthorizeUrl(returnTo: string, opts: { forceConsent?: boolean } = {}) {
-  const d = await discovery();
+  // 发起登录时总是重新获取发现文档：SSO 不可用时在 MarketStars 侧显示重试提示，而不是把用户送到错误页
+  const d = await discovery({ fresh: true });
   const state = crypto.randomBytes(24).toString("base64url");
   const nonce = crypto.randomBytes(24).toString("base64url");
   const { verifier, challenge } = pkcePair();
@@ -114,17 +115,9 @@ export async function reverifySession(s: Session): Promise<boolean> {
   try {
     let accessToken = s.accessToken ?? "";
     if (s.tokenExpiresAt && s.tokenExpiresAt.getTime() < Date.now() + 30000) {
-      if (!s.refreshToken) return false;
-      const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: s.refreshToken });
-      accessToken = t.access_token;
-      await prisma.session.update({
-        where: { id: s.id },
-        data: {
-          accessToken,
-          refreshToken: t.refresh_token ?? s.refreshToken,
-          tokenExpiresAt: new Date(Date.now() + (t.expires_in ?? 300) * 1000),
-        },
-      });
+      const fresh = await refreshSerialized(s.id);
+      if (!fresh) return false;
+      accessToken = fresh;
     }
     const id = await fetchIdentity(accessToken);
     if (id.me.user_id !== s.userId || id.me.tenant_id !== s.tenantId) return false;
@@ -133,6 +126,28 @@ export async function reverifySession(s: Session): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * 串行刷新：SSO 会轮换 refresh token，同一会话的并发请求（多个组件、多副本）若各自刷新，
+ * 第二个会因旧 refresh token 失效而失败。这里锁住会话行，拿到锁后先重读，已被别的请求刷新则直接使用。
+ */
+async function refreshSerialized(sessionId: string): Promise<string | null> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Session WHERE id = ${sessionId} FOR UPDATE`;
+      const cur = await tx.session.findUnique({ where: { id: sessionId } });
+      if (!cur?.refreshToken) return null;
+      if (cur.accessToken && cur.tokenExpiresAt && cur.tokenExpiresAt.getTime() >= Date.now() + 30000) return cur.accessToken;
+      const t = await tokenRequest({ grant_type: "refresh_token", refresh_token: cur.refreshToken });
+      await tx.session.update({
+        where: { id: sessionId },
+        data: { accessToken: t.access_token, refreshToken: t.refresh_token ?? cur.refreshToken, tokenExpiresAt: new Date(Date.now() + (t.expires_in ?? 300) * 1000) },
+      });
+      return t.access_token;
+    },
+    { timeout: 15000, maxWait: 15000 },
+  ).catch(() => null);
 }
 
 export async function revokeTokens(s: Pick<Session, "refreshToken" | "accessToken">) {

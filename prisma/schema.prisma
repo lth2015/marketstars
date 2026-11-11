@@ -65,7 +65,7 @@ model App {
   name             String
   tagline          String    @db.VarChar(400)
   tags             String    @default("") @db.VarChar(500)
-  searchText       String    @default("") @db.Text
+  searchText       String    @db.Text // MySQL 8：TEXT 不能有默认值，由代码写入
   iconUrl          String?   @db.VarChar(1000)
   screenshots      Json?
   overview         Json?
@@ -130,8 +130,8 @@ model PlanVersion {
   priceType                String // free | monthly | contact
   priceJpy                 Int      @default(0) // 含税整数日元 / 每租户每月
   trialDays                Int      @default(0)
-  includes                 String   @default("") @db.Text
-  limits                   String   @default("") @db.Text
+  includes                 String   @db.Text
+  limits                   String   @db.Text
   externalContractRequired Boolean  @default(false)
   /// 模型 Token 按量单价（日元 / 100 万 Token，0 = 不按量计费）
   tokenPriceJpyPerMTok     Int      @default(0)

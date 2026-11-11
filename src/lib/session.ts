@@ -6,7 +6,8 @@ import { reverifySession } from "./sso";
 
 export const SESSION_COOKIE = "ms_session";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-const REVERIFY_MS = 60 * 1000;
+/** 向 SSO 复查资格的间隔（默认 60 秒；测试可调小） */
+const REVERIFY_MS = Math.max(0, Number(process.env.SSO_REVERIFY_SECONDS ?? 60)) * 1000;
 
 export type SessionUser = {
   sessionId: string;

@@ -99,7 +99,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
               {shots.map((s, i) => (
                 <a key={i} href={`#shot-${i}`} aria-label={`${s.alt}を拡大`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s.url} alt={s.alt} loading="lazy" />
+                  <img src={s.url} alt={s.alt} width={1280} height={800} loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "auto"} decoding="async" />
                 </a>
               ))}
             </div>
@@ -111,7 +111,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
               <a className="close" href="#overview" aria-label="閉じる">×</a>
               {i > 0 && <a href={`#shot-${i - 1}`} className="btn btn-sm" style={{ position: "absolute", left: 16 }}>前へ</a>}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.url} alt={s.alt} />
+              <img src={s.url} alt={s.alt} loading="lazy" decoding="async" />
               {i < shots.length - 1 && <a href={`#shot-${i + 1}`} className="btn btn-sm" style={{ position: "absolute", right: 16 }}>次へ</a>}
             </div>
           ))}

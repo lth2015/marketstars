@@ -4,6 +4,7 @@ import { prisma } from "./db";
 import { audit } from "./audit";
 import { buildSearchText, derivePricing } from "./catalog";
 import { isSafeLaunchUrl } from "./text";
+import { invalidateCatalog } from "./cache";
 
 export type PlanProposal = { key: string; name: string; priceType: "free" | "monthly" | "contact"; priceJpy: number; trialDays: number; includes: string; limits: string; ext: boolean; sortOrder: number; retire?: boolean; tokenPrice?: number };
 
@@ -121,6 +122,7 @@ export async function publishApp(appId: string, actorId: string, action = "publi
     await tx.appRelease.create({ data: { appId, number: n + 1, snapshot: d as unknown as Prisma.InputJsonValue, publishedBy: actorId } });
     await audit(tx, { actorId, actorType: "operator", objectType: "app", objectId: appId, action, fromState: app.status, toState: "published", data: { release: n + 1 } });
   });
+  invalidateCatalog();
   return [];
 }
 

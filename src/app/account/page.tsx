@@ -16,6 +16,7 @@ export default async function AccountPage() {
         <dl className="dl">
           <dt>利用者</dt><dd>{s.userName}{s.email && <span className="muted">（{s.email}）</span>}</dd>
           <dt>現在の空間</dt><dd><strong>{s.tenantName}</strong>（{s.isOwner ? "オーナー" : "メンバー"}）</dd>
+          <dt>ID（サポート用）</dt><dd className="small muted"><code>user {s.userId}</code> ・ <code>space {s.tenantId}</code></dd>
           {op && <><dt>運営権限</dt><dd>{op.role} — <Link href="/admin">運営管理へ</Link></dd></>}
         </dl>
         <div className="row">

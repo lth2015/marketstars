@@ -119,7 +119,7 @@ async function main() {
 
   // 下书一款未发布草稿，便于演示运营发布流程
   const draft = await prisma.app.create({ data: { slug: "staff-training", status: "draft", name: "スタッフ研修AI", tagline: "接客マニュアルから、ロールプレイ形式の研修を自動で作成します。", providerId: providers.get("MarketStars Labs")!, searchText: "", overview: { problem: "新人研修の準備時間を短縮します。" }, categories: { connect: [{ slug: "store-ops" }] } } });
-  await prisma.planVersion.create({ data: { appId: draft.id, planKey: "standard", name: "スタンダード", priceType: "monthly", priceJpy: 1650, trialDays: 14, includes: "研修シナリオ 月20本" } });
+  await prisma.planVersion.create({ data: { appId: draft.id, planKey: "standard", name: "スタンダード", priceType: "monthly", priceJpy: 1650, trialDays: 14, includes: "研修シナリオ 月20本", limits: "" } });
 
   // 排行演示用合成开通（测试环境专用；内部测试空间不计入）
   const all = await prisma.app.findMany({ where: { status: "published" }, include: { plans: true } });

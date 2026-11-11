@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { normalizeSearch } from "./text";
+import { memo } from "./cache";
+
+const CATALOG_TTL = Number(process.env.CATALOG_CACHE_SECONDS ?? 15);
 
 export const PAGE_SIZES = [10, 30, 50] as const;
 export const SORTS = { recommended: "おすすめ順", new: "新着順", price: "価格の安い順" } as const;
@@ -72,7 +75,11 @@ function orderBy(sort: SortKey): Prisma.AppOrderByWithRelationInput[] {
   return [{ recommendWeight: "desc" }, { firstPublishedAt: "desc" }, { id: "asc" }];
 }
 
-export async function listApps(q: ListQuery) {
+export function listApps(q: ListQuery) {
+  return memo(`list:${JSON.stringify(q)}`, CATALOG_TTL, () => listAppsUncached(q));
+}
+
+async function listAppsUncached(q: ListQuery) {
   const and: Prisma.AppWhereInput[] = [publicAppWhere];
   if (q.q) {
     for (const term of normalizeSearch(q.q).split(" ").filter(Boolean)) and.push({ searchText: { contains: term } });
@@ -92,7 +99,11 @@ export async function listApps(q: ListQuery) {
   return { total, items, pages: Math.max(1, Math.ceil(total / q.perPage)) };
 }
 
-export async function facets() {
+export function facets() {
+  return memo("facets", CATALOG_TTL, facetsUncached);
+}
+
+async function facetsUncached() {
   const [categories, industries, integrations] = await Promise.all([
     prisma.category.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.industry.findMany({ orderBy: { sortOrder: "asc" } }),
@@ -149,7 +160,11 @@ export async function computeRanking(now = new Date()) {
   return rows.length;
 }
 
-export async function getRanking(category?: string) {
+export function getRanking(category?: string) {
+  return memo(`ranking:${category ?? ""}`, CATALOG_TTL, () => getRankingUncached(category));
+}
+
+async function getRankingUncached(category?: string) {
   const entries = await prisma.rankingEntry.findMany({
     where: { app: { ...publicAppWhere, ...(category ? { categories: { some: { slug: category } } } : {}) } },
     include: { app: { include: cardInclude } },

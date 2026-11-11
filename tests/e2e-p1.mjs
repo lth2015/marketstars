@@ -62,12 +62,12 @@ await step("P1-3 auto-renew job extends period exactly once (idempotent)", async
   // 需要直接修改测试库，把本期结束拨到 12 小时后以模拟临近期末（MYSQL_DB 指定测试库）
   const { execSync } = await import("node:child_process");
   const db = process.env.MYSQL_DB ?? "marketstars";
-  execSync(`mysql ${db} -e "UPDATE Subscription SET currentPeriodEnd = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 12 HOUR) WHERE id='${subId}'"`);
+  execSync(`mysql ${process.env.MYSQL_ARGS ?? ""} ${db} -e "UPDATE Subscription SET currentPeriodEnd = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 12 HOUR) WHERE id='${subId}'"`);
   const r1 = await runJobs();
   const r2 = await runJobs();
   assert.equal(r1.renewed.charged, 1, JSON.stringify(r1));
   assert.equal(r2.renewed.charged, 0, JSON.stringify(r2));
-  const n = execSync(`mysql -N ${db} -e "SELECT COUNT(*) FROM BillingRecord WHERE subscriptionId='${subId}'"`).toString().trim();
+  const n = execSync(`mysql ${process.env.MYSQL_ARGS ?? ""} -N ${db} -e "SELECT COUNT(*) FROM BillingRecord WHERE subscriptionId='${subId}'"`).toString().trim();
   assert.equal(n, "2");
 });
 
