@@ -1,6 +1,6 @@
 import type { App, PlanVersion, Subscription } from "@prisma/client";
 import type { SessionUser } from "./session";
-import { t } from "./messages";
+import { messages, type Messages } from "./messages";
 import { isEntitled } from "./subscriptions";
 
 export type Cta = { label: string; href?: string; disabled?: boolean; note?: string; variant?: "primary" | "secondary" };
@@ -13,18 +13,20 @@ export function computeCta(args: {
   live: Subscription | null;
   trialUsed: boolean;
   lastEnded: Subscription | null;
+  m?: Messages;
 }): Cta {
   const { app, plans, session, live, trialUsed, lastEnded } = args;
+  const t = args.m ?? messages.ja;
   const base = `/apps/${app.slug}`;
-  if (app.suspendedReason) return { label: t.cta.suspended, disabled: true, note: "現在このアプリは一時停止中です。" };
+  if (app.suspendedReason) return { label: t.cta.suspended, disabled: true, note: t.ctaNote.suspended };
   if (!session) return { label: t.cta.login, href: `/auth/login?returnTo=${encodeURIComponent(base)}` };
   if (live) {
     if (live.status === "pending") return { label: t.cta.pending, href: `/my/apps/${live.id}`, variant: "secondary" };
-    if (live.status === "suspended") return { label: t.cta.suspended, href: `/my/apps/${live.id}`, variant: "secondary", note: "運営により一時停止されています。" };
+    if (live.status === "suspended") return { label: t.cta.suspended, href: `/my/apps/${live.id}`, variant: "secondary", note: t.ctaNote.suspendedByOperator };
     if (isEntitled(live)) return { label: t.cta.open, href: `/launch/${live.id}` };
   }
-  if (!app.acceptingNew) return { label: t.cta.closed, disabled: true, note: "現在、新規のお申し込みを受け付けていません。" };
-  if (!session.isOwner) return { label: t.cta.notOwner, disabled: true, note: "お申し込みは空間のオーナーのみ可能です。オーナーにご依頼ください。" };
+  if (!app.acceptingNew) return { label: t.cta.closed, disabled: true, note: t.ctaNote.closed };
+  if (!session.isOwner) return { label: t.cta.notOwner, disabled: true, note: t.ctaNote.notOwner };
   const free = plans.find((p) => p.priceType === "free");
   const trial = plans.find((p) => p.trialDays > 0 && p.priceType !== "free");
   if (trialUsed && lastEnded?.kind === "trial") return { label: t.cta.trialEnded, href: `${base}/apply` };

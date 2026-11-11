@@ -10,7 +10,7 @@ import { priceLabel } from "@/lib/text";
 import { formatJst } from "@/lib/time";
 import { isNew } from "@/lib/catalog";
 import { PriceText } from "@/components/AppCard";
-import { t } from "@/lib/messages";
+import { getMessages } from "@/lib/messages";
 import { canReview, maskName } from "@/lib/reviews";
 import { ReviewForm } from "@/components/ReviewForm";
 import { Stars } from "@/components/Stars";
@@ -54,7 +54,8 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
   const live = session?.tenantId ? await liveSubscription(session.tenantId, app.id) : null;
   const trialUsed = session?.tenantId ? !!(await prisma.trialUsage.findUnique({ where: { tenantId_appId: { tenantId: session.tenantId, appId: app.id } } })) : false;
   const lastEnded = session?.tenantId && !live ? await prisma.subscription.findFirst({ where: { tenantId: session.tenantId, appId: app.id }, orderBy: { createdAt: "desc" } }) : null;
-  const cta = computeCta({ app, plans: app.plans, session, live, trialUsed, lastEnded });
+  const t = await getMessages();
+  const cta = computeCta({ app, plans: app.plans, session, live, trialUsed, lastEnded, m: t });
   const support = (app.supportChannels ?? []) as { type: string; value: string }[];
   const reviews = await prisma.review.findMany({ where: { appId: app.id, status: "published" }, orderBy: { createdAt: "desc" }, take: 20 });
   const eligible = await canReview(session, app.id);

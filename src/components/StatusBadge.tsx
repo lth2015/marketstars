@@ -1,4 +1,6 @@
-import { STATUS_LABEL } from "@/lib/subscriptions";
-export function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge st-${status}`}>{STATUS_LABEL[status] ?? status}</span>;
+import { getMessages } from "@/lib/messages";
+
+export async function StatusBadge({ status }: { status: string }) {
+  const m = await getMessages();
+  return <span className={`badge st-${status}`}>{m.status[status] ?? status}</span>;
 }

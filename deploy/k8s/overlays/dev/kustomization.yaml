@@ -30,6 +30,8 @@ configMapGenerator:
       - SSO_LOGOUT_URL=https://auth.sso-dev.example.com/sso/logout
       - OPERATOR_SSO_TENANT_ID=REPLACE_ME_DEV_TENANT_ID
       - CLOUD_SQL_INSTANCE=marketstars-dev:asia-northeast1:marketstars-db
+      - ASSET_STORAGE=gcs
+      - GCS_ASSETS_BUCKET=marketstars-dev-marketstars-assets
 
 patches:
   - target: { kind: ServiceAccount, name: marketstars }
