@@ -381,6 +381,13 @@ export async function setAutoRenew(s: SessionUser, id: string, on: boolean, paym
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: sub.tenantId, objectType: "subscription", objectId: id, action: on ? "auto_renew_on" : "auto_renew_off" });
 }
 
+export async function setUsageCap(s: SessionUser, id: string, capJpy: number | null) {
+  const sub = await ownerSub(s, id);
+  if (capJpy !== null && !(capJpy >= 0 && capJpy <= 10_000_000)) throw new BizError("cap", "上限額が不正です。");
+  await prisma.subscription.update({ where: { id }, data: { usageCapJpy: capJpy } });
+  await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: sub.tenantId, objectType: "subscription", objectId: id, action: "set_usage_cap", data: { capJpy } });
+}
+
 // ---------- P1：在线支付 ----------
 
 export async function addPaymentMethod(s: SessionUser, card: CardInput) {

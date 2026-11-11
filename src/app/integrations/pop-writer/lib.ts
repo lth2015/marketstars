@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { config } from "@/lib/config";
+import { MarketStarsClient } from "@/sdk/marketstars";
 
 export const CLIENT_ID = "pop-writer";
 const COOKIE = "popw_session";
@@ -10,8 +11,8 @@ const secret = () => config.launchSecret(CLIENT_ID);
 
 export type PopSession = { u: string; n: string; t: string; tn: string; exp: number };
 
-export function basicAuth() {
-  return "Basic " + Buffer.from(`${CLIENT_ID}:${secret()}`).toString("base64");
+export function marketstars() {
+  return new MarketStarsClient({ baseUrl: config.baseUrl, clientId: CLIENT_ID, clientSecret: secret() });
 }
 
 function sign(v: string) {
@@ -34,9 +35,11 @@ export async function getPopSession(): Promise<PopSession | null> {
 
 /** 每次使用前向 MarketStars 复查权益，不能绕过市场直接获得付费能力。 */
 export async function checkEntitlement(tenantId: string) {
-  const r = await fetch(`${config.baseUrl}/api/v1/entitlements/check`, { method: "POST", headers: { authorization: basicAuth(), "content-type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }), cache: "no-store" });
-  if (!r.ok) return { entitled: false, plan_key: null as string | null, status: "error" };
-  return (await r.json()) as { entitled: boolean; plan_key: string | null; status: string; expires_at: string | null };
+  try {
+    return await marketstars().checkEntitlement(tenantId);
+  } catch {
+    return { entitled: false, plan_key: null as string | null, status: "error", kind: null, expires_at: null };
+  }
 }
 
 const TONES: Record<string, string[]> = {

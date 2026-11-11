@@ -25,7 +25,7 @@ export default async function DevApp({ params, searchParams }: { params: Promise
     prisma.subscription.groupBy({ by: ["status"], where: { appId: id, internalTest: false, liveKey: { not: null } }, _count: true }),
   ]);
   const d = draftFromApp(app, app.plans);
-  if (!d.plans) d.plans = app.plans.map((p) => ({ key: p.planKey, name: p.name, priceType: p.priceType as "free", priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, ext: p.externalContractRequired, sortOrder: p.sortOrder }));
+  if (!d.plans) d.plans = app.plans.map((p) => ({ key: p.planKey, name: p.name, priceType: p.priceType as "free", priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, ext: p.externalContractRequired, sortOrder: p.sortOrder, tokenPrice: p.tokenPriceJpyPerMTok }));
   const submitted = app.reviewStatus === "submitted";
   return (
     <div className="container" style={{ maxWidth: 1000, paddingBottom: 64 }}>

@@ -140,6 +140,7 @@ put marketstars-job-token "$(openssl rand -hex 32)"
 put marketstars-oidc-client-secret "<client secret issued by lth2015/sso for marketstars-$ENV>"
 put marketstars-launch-client-secret-pop-writer "<value from SSO>"
 put marketstars-payment-webhook-secret "<webhook signing secret from the payment provider>"
+put marketstars-anthropic-api-key "<Anthropic API key for the model gateway>"
 unset DB_PASSWORD
 ```
 
@@ -156,7 +157,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:$GSA" --role=roles/cloudsql.client
 for s in marketstars-database-url marketstars-session-secret marketstars-job-token \
          marketstars-oidc-client-secret marketstars-launch-client-secret-pop-writer \
-         marketstars-payment-webhook-secret; do
+         marketstars-payment-webhook-secret marketstars-anthropic-api-key; do
   gcloud secrets add-iam-policy-binding $s \
     --member="serviceAccount:$GSA" --role=roles/secretmanager.secretAccessor
 done

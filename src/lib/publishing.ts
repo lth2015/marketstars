@@ -5,7 +5,7 @@ import { audit } from "./audit";
 import { buildSearchText, derivePricing } from "./catalog";
 import { isSafeLaunchUrl } from "./text";
 
-export type PlanProposal = { key: string; name: string; priceType: "free" | "monthly" | "contact"; priceJpy: number; trialDays: number; includes: string; limits: string; ext: boolean; sortOrder: number; retire?: boolean };
+export type PlanProposal = { key: string; name: string; priceType: "free" | "monthly" | "contact"; priceJpy: number; trialDays: number; includes: string; limits: string; ext: boolean; sortOrder: number; retire?: boolean; tokenPrice?: number };
 
 export type AppDraft = {
   name: string; tagline: string; tags: string; iconUrl: string | null; screenshots: { url: string; alt: string }[];
@@ -44,6 +44,7 @@ export function draftFromForm(fd: FormData, fixed: { providerId?: string; launch
         priceJpy: priceType === "monthly" ? Math.max(0, Math.floor(Number(fd.get(`plan_${i}_priceJpy`)) || 0)) : 0,
         trialDays: priceType === "free" ? 0 : Math.max(0, Math.min(90, Number(fd.get(`plan_${i}_trialDays`)) || 0)),
         includes: str(fd, `plan_${i}_includes`), limits: str(fd, `plan_${i}_limits`), ext: fd.get(`plan_${i}_ext`) === "on", sortOrder: i, retire: fd.get(`plan_${i}_retire`) === "on",
+        tokenPrice: Math.max(0, Math.min(100000, Math.floor(Number(fd.get(`plan_${i}_tokenPrice`)) || 0))),
       });
     }
     d.plans = plans;
@@ -81,11 +82,11 @@ async function applyPlanProposals(tx: Prisma.TransactionClient, appId: string, p
       if (cur) await tx.planVersion.update({ where: { id: cur.id }, data: { current: false } });
       continue;
     }
-    const same = cur && cur.name === p.name && cur.priceType === p.priceType && cur.priceJpy === p.priceJpy && cur.trialDays === p.trialDays && cur.includes === p.includes && cur.limits === p.limits && cur.externalContractRequired === p.ext;
+    const same = cur && cur.name === p.name && cur.priceType === p.priceType && cur.priceJpy === p.priceJpy && cur.trialDays === p.trialDays && cur.includes === p.includes && cur.limits === p.limits && cur.externalContractRequired === p.ext && cur.tokenPriceJpyPerMTok === (p.tokenPrice ?? 0);
     if (same) { if (cur.sortOrder !== p.sortOrder) await tx.planVersion.update({ where: { id: cur.id }, data: { sortOrder: p.sortOrder } }); continue; }
     const last = await tx.planVersion.findFirst({ where: { appId, planKey: p.key }, orderBy: { version: "desc" } });
     if (cur) await tx.planVersion.update({ where: { id: cur.id }, data: { current: false } });
-    const v = await tx.planVersion.create({ data: { appId, planKey: p.key, version: (last?.version ?? 0) + 1, name: p.name, priceType: p.priceType, priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, externalContractRequired: p.ext, sortOrder: p.sortOrder } });
+    const v = await tx.planVersion.create({ data: { appId, planKey: p.key, version: (last?.version ?? 0) + 1, name: p.name, priceType: p.priceType, priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, externalContractRequired: p.ext, tokenPriceJpyPerMTok: p.tokenPrice ?? 0, sortOrder: p.sortOrder } });
     await audit(tx, { actorId, actorType: "operator", objectType: "plan", objectId: v.id, action: cur ? "new_version" : "create", data: { planKey: p.key, version: v.version, priceJpy: p.priceJpy } });
   }
 }
@@ -124,7 +125,7 @@ export async function publishApp(appId: string, actorId: string, action = "publi
 }
 
 /** 已发布内容 → 草稿初始值。 */
-export function draftFromApp(app: Prisma.AppGetPayload<{ include: { categories: true; industries: true; integrationTags: true } }>, plans?: { planKey: string; name: string; priceType: string; priceJpy: number; trialDays: number; includes: string; limits: string; externalContractRequired: boolean; sortOrder: number }[]): AppDraft {
+export function draftFromApp(app: Prisma.AppGetPayload<{ include: { categories: true; industries: true; integrationTags: true } }>, plans?: { planKey: string; name: string; priceType: string; priceJpy: number; trialDays: number; includes: string; limits: string; externalContractRequired: boolean; sortOrder: number; tokenPriceJpyPerMTok: number }[]): AppDraft {
   if (app.draft) return app.draft as unknown as AppDraft;
   const ov = (app.overview ?? {}) as Partial<AppDraft["overview"]>;
   return {
@@ -133,6 +134,6 @@ export function draftFromApp(app: Prisma.AppGetPayload<{ include: { categories: 
     launchUrl: app.launchUrl, integrationType: app.integrationType, launchClientId: app.launchClientId, supportChannels: (app.supportChannels ?? []) as AppDraft["supportChannels"],
     privacyUrl: app.privacyUrl, termsUrl: app.termsUrl, version: app.version, providerId: app.providerId,
     categories: app.categories.map((c) => c.slug), industries: app.industries.map((c) => c.slug), integrations: app.integrationTags.map((c) => c.slug),
-    ...(plans ? { plans: plans.map((p) => ({ key: p.planKey, name: p.name, priceType: p.priceType as PlanProposal["priceType"], priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, ext: p.externalContractRequired, sortOrder: p.sortOrder })) } : {}),
+    ...(plans ? { plans: plans.map((p) => ({ key: p.planKey, name: p.name, priceType: p.priceType as PlanProposal["priceType"], priceJpy: p.priceJpy, trialDays: p.trialDays, includes: p.includes, limits: p.limits, ext: p.externalContractRequired, sortOrder: p.sortOrder, tokenPrice: p.tokenPriceJpyPerMTok })) } : {}),
   };
 }

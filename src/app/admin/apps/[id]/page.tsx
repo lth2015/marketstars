@@ -48,7 +48,7 @@ export default async function EditApp({ params, searchParams }: { params: Promis
         <h2 style={{ margin: 0 }}>料金プラン</h2>
         <p className="small muted" style={{ margin: 0 }}>料金・内容を変更すると新しい版が作成されます。確定済みの契約は申込時の料金・条件のまま保持されます。</p>
         <div className="table-wrap"><table className="table"><thead><tr><th>キー</th><th>版</th><th>名称</th><th>料金</th><th>体験</th><th>状態</th><th></th></tr></thead><tbody>
-          {app.plans.map((p) => <tr key={p.id}><td>{p.planKey}</td><td>v{p.version}</td><td>{p.name}</td><td>{priceLabel(p)}</td><td>{p.trialDays ? `${p.trialDays}日` : "—"}</td><td>{p.current ? "受付中" : "旧版"}</td>
+          {app.plans.map((p) => <tr key={p.id}><td>{p.planKey}</td><td>v{p.version}</td><td>{p.name}</td><td>{priceLabel(p)}</td><td>{p.trialDays ? `${p.trialDays}日` : "—"}{p.tokenPriceJpyPerMTok ? ` ・ 従量 ¥${p.tokenPriceJpyPerMTok}/MTok` : ""}</td><td>{p.current ? "受付中" : "旧版"}</td>
             <td>{p.current && <form action={retirePlanAction}><input type="hidden" name="appId" value={id} /><input type="hidden" name="planId" value={p.id} /><button className="btn btn-ghost btn-sm">受付終了</button></form>}</td></tr>)}
         </tbody></table></div>
         <details><summary style={{ cursor: "pointer", fontWeight: 600 }}>プランを追加・新しい版を作成</summary>
@@ -61,6 +61,7 @@ export default async function EditApp({ params, searchParams }: { params: Promis
               <div className="form-row"><label htmlFor="priceJpy">月額（税込・円／1空間）</label><input id="priceJpy" name="priceJpy" type="number" min={0} /></div>
               <div className="form-row"><label htmlFor="trialDays">無料体験日数</label><input id="trialDays" name="trialDays" type="number" min={0} max={90} defaultValue={0} /></div>
               <div className="form-row"><label htmlFor="sortOrder">表示順</label><input id="sortOrder" name="sortOrder" type="number" defaultValue={0} /></div>
+              <div className="form-row"><label htmlFor="tokenPrice">AI 従量単価（円 / 100万トークン）</label><input id="tokenPrice" name="tokenPrice" type="number" min={0} defaultValue={0} /></div>
             </div>
             <div className="form-row"><label htmlFor="includes">含まれる内容</label><textarea id="includes" name="includes" /></div>
             <div className="form-row"><label htmlFor="limits">制限</label><textarea id="limits" name="limits" /></div>

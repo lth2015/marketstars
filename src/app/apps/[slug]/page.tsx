@@ -138,6 +138,7 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
                   <h3>{p.name}</h3>
                   <div className="price">{priceLabel(p)}</div>
                   {p.priceType === "monthly" && <div className="small muted">{t.perTenant}</div>}
+                  {p.tokenPriceJpyPerMTok > 0 && <div className="small" style={{ marginTop: 4 }}>＋ AI 従量：¥{p.tokenPriceJpyPerMTok.toLocaleString()} / 100万トークン（月末締め）</div>}
                   {p.trialDays > 0 && p.priceType !== "free" && <div style={{ marginTop: 8 }}><span className="tag tag-trial">{p.trialDays}日間無料体験</span><div className="small muted" style={{ marginTop: 4 }}>体験終了後に自動課金はありません</div></div>}
                   <div className="prose small" style={{ marginTop: 12 }}><p>{p.includes}</p>{p.limits && <p className="muted">{p.limits}</p>}</div>
                   {p.externalContractRequired && <div className="alert alert-warn small" style={{ marginBottom: 0 }}>提供会社との別途契約が必要です</div>}

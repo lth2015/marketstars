@@ -7,6 +7,7 @@
 - 部署：GCP 外部 Application LB + GKE Gateway API + GKE + Cloud SQL，见 [docs/deploy.md](docs/deploy.md) 与 [deploy/gcp/README.md](deploy/gcp/README.md)
 
 P1 已包含：信用卡在线支付与自动续费、套餐自助变更、评分评论、开发者自助提交和审核，见 [docs/p1.md](docs/p1.md)。
+后续阶段已包含：统一模型网关与 SDK、Token 按量收费、供应商自动分账、开发者图片上传，见 [docs/gateway-and-payouts.md](docs/gateway-and-payouts.md)。
 
 ## 本地运行
 
@@ -38,6 +39,7 @@ npm run typecheck
 npm test                         # 单元测试：周期计算、搜索归一化、权益、安全校验
 node tests/e2e.mjs               # P0 端到端验收（需服务已启动、demo 模式、已 seed）
 node tests/e2e-p1.mjs            # P1 端到端验收（重新 seed 后运行）
+node tests/e2e-p2.mjs            # 模型网关 / 按量计费 / 分账 / 上传（重新 seed 后运行）
 ```
 
 ## 目录
@@ -47,7 +49,8 @@ node tests/e2e-p1.mjs            # P1 端到端验收（重新 seed 后运行）
 | `src/app` | 页面（首页、列表、排行、详情、开通确认、我的应用、账单、帮助、咨询、运营后台）与 API |
 | `src/lib/subscriptions.ts` | 订阅状态机：试用/免费/付费申请、退订、运营确认收款/续期/暂停，幂等与唯一约束 |
 | `src/lib/sso.ts`, `src/lib/session.ts` | SSO 适配与服务端会话（HttpOnly Cookie，token 只在服务端） |
-| `src/app/integrations/pop-writer` | 示范接入应用（一次性启动码 + 权益复查） |
+| `src/app/integrations/pop-writer` | 示范接入应用（一次性启动码 + 权益复查 + 通过模型网关调用 AI） |
+| `src/sdk/marketstars.ts` | 接入应用用的服务端 SDK（启动码兑换、权益复查、模型调用） |
 | `api/marketstars.openapi.yaml` | MarketStars OpenAPI（运行时 `/api/openapi`） |
 | `prisma/` | 数据模型、迁移、种子数据 |
 | `deploy/` | Dockerfile 之外的 GKE kustomize 清单与 GCP 搭建步骤 |

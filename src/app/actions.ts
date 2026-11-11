@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
-import { addPaymentMethod, applyForApp, BizError, cancelPlanChange, cancelSubscription, changePlan, endTrialNow, payIntent, removePaymentMethod, setAutoRenew, undoCancel, withdrawApplication } from "@/lib/subscriptions";
+import { setUsageCap, addPaymentMethod, applyForApp, BizError, cancelPlanChange, cancelSubscription, changePlan, endTrialNow, payIntent, removePaymentMethod, setAutoRenew, undoCancel, withdrawApplication } from "@/lib/subscriptions";
 import { submitReview } from "@/lib/reviews";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
@@ -164,4 +164,17 @@ export async function reviewAction(_: FormState, fd: FormData): Promise<FormStat
   }
   revalidatePath(`/apps/${String(fd.get("slug"))}`);
   return { ok: "レビューを投稿しました。" };
+}
+
+export async function usageCapAction(fd: FormData) {
+  const s = await requireSession();
+  const id = String(fd.get("id"));
+  const raw = String(fd.get("cap") ?? "").trim();
+  try {
+    await setUsageCap(s, id, raw === "" ? null : Math.floor(Number(raw)));
+  } catch (e) {
+    if (e instanceof BizError) redirect(`/my/apps/${id}?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/my/apps/${id}?msg=${encodeURIComponent(raw === "" ? "利用上限を解除しました。" : `月の利用上限を ¥${Number(raw).toLocaleString()} に設定しました。`)}`);
 }

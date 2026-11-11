@@ -7,7 +7,9 @@ import { getSession, isOperator } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { derivePricing } from "@/lib/catalog";
 import { draftFromForm, publishApp } from "@/lib/publishing";
+import { applyUploads, UploadError } from "@/lib/assets";
 import { recomputeRating } from "@/lib/reviews";
+import { generatePayouts } from "@/lib/payouts";
 import { BizError, confirmPayment, operatorCancelAtPeriodEnd, rejectApplication, resumeSubscription, suspendSubscription } from "@/lib/subscriptions";
 
 async function requireOperator() {
@@ -36,6 +38,12 @@ export async function saveDraftAction(fd: FormData) {
   const id = str(fd, "id");
   const prev = await prisma.app.findUniqueOrThrow({ where: { id } });
   const d = draftFromForm(fd);
+  try {
+    await applyUploads(fd, d, { type: "operator", id: op.userId });
+  } catch (e) {
+    if (e instanceof UploadError) back(`/admin/apps/${id}`, "error", e.message);
+    throw e;
+  }
   // 保留开发者提出的套餐提案
   const prevPlans = (prev.draft as { plans?: unknown } | null)?.plans;
   if (prevPlans) (d as { plans?: unknown }).plans = prevPlans;
@@ -120,7 +128,7 @@ export async function savePlanAction(fd: FormData) {
   await prisma.$transaction(async (tx) => {
     if (prev) await tx.planVersion.updateMany({ where: { appId, planKey }, data: { current: false } });
     const p = await tx.planVersion.create({
-      data: { appId, planKey, version: (prev?.version ?? 0) + 1, name: str(fd, "name") || planKey, priceType, priceJpy, trialDays: priceType === "free" ? 0 : Math.max(0, Math.min(90, Number(fd.get("trialDays")) || 0)), includes: str(fd, "includes"), limits: str(fd, "limits"), externalContractRequired: fd.get("ext") === "on", sortOrder: Number(fd.get("sortOrder")) || 0 },
+      data: { appId, planKey, version: (prev?.version ?? 0) + 1, name: str(fd, "name") || planKey, priceType, priceJpy, trialDays: priceType === "free" ? 0 : Math.max(0, Math.min(90, Number(fd.get("trialDays")) || 0)), includes: str(fd, "includes"), limits: str(fd, "limits"), externalContractRequired: fd.get("ext") === "on", tokenPriceJpyPerMTok: Math.max(0, Math.floor(Number(fd.get("tokenPrice")) || 0)), sortOrder: Number(fd.get("sortOrder")) || 0 },
     });
     const plans = await tx.planVersion.findMany({ where: { appId, current: true } });
     await tx.app.update({ where: { id: appId }, data: derivePricing(plans) });
@@ -193,6 +201,25 @@ export async function subscriptionOpAction(fd: FormData) {
   back(ret, "msg", "処理しました。");
 }
 
+/** 未入金（due）请求的收款确认，例如请求书払いの按量账单。 */
+export async function confirmDueAction(fd: FormData) {
+  const op = await requireOperator();
+  const id = str(fd, "id");
+  const ref = str(fd, "receiptRef");
+  const amount = Math.floor(Number(fd.get("amountJpy")));
+  const rec = await prisma.billingRecord.findUnique({ where: { id } });
+  if (!rec || rec.status !== "due") back("/admin/billing", "error", "未入金の請求ではありません。");
+  if (!ref) back("/admin/billing", "error", "入金証憑番号を入力してください。");
+  if (amount !== rec!.amountJpy) back("/admin/billing", "error", `金額が請求額（¥${rec!.amountJpy.toLocaleString()}）と一致しません。`);
+  try {
+    const r = await prisma.billingRecord.updateMany({ where: { id, status: "due" }, data: { status: "paid", receiptRef: ref, paidAmountJpy: amount, paidAt: new Date(), confirmedBy: op.userId } });
+    if (r.count) await audit(prisma, { actorId: op.userId, actorType: "operator", tenantId: rec!.tenantId, objectType: "billing", objectId: id, action: "confirm_due", fromState: "due", toState: "paid", data: { receiptRef: ref } });
+  } catch {
+    back("/admin/billing", "error", "この証憑番号は使用済みです。");
+  }
+  back("/admin/billing", "msg", "入金を確認しました。");
+}
+
 export async function refundAction(fd: FormData) {
   const op = await requireOperator();
   const id = str(fd, "id");
@@ -236,4 +263,32 @@ export async function providerSaveAction(fd: FormData) {
   const row = id ? await prisma.provider.update({ where: { id }, data }) : await prisma.provider.create({ data });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "provider", objectId: row.id, action: id ? "update" : "create" });
   back("/admin/content", "msg", "提供会社を保存しました。");
+}
+
+export async function payoutAction(fd: FormData) {
+  const op = await requireOperator();
+  const kind = str(fd, "op");
+  if (kind === "generate") {
+    const month = str(fd, "month");
+    if (!/^\d{4}-\d{2}$/.test(month)) back("/admin/payouts", "error", "対象月は YYYY-MM で入力してください。");
+    let n = 0;
+    try { n = await generatePayouts(month, op.userId); } catch (e) { back("/admin/payouts", "error", String((e as Error).message)); }
+    back("/admin/payouts", "msg", `${month} の精算書を ${n} 件作成しました（作成済みの精算書は再計算しません）。`);
+  }
+  if (kind === "paid") {
+    const id = str(fd, "id");
+    const ref = str(fd, "reference");
+    if (!ref) back("/admin/payouts", "error", "振込の参照番号を入力してください。");
+    const r = await prisma.payoutStatement.updateMany({ where: { id, status: "confirmed" }, data: { status: "paid", paidAt: new Date(), paidReference: ref } });
+    if (r.count) await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "payout", objectId: id, action: "mark_paid", data: { reference: ref } });
+    back("/admin/payouts", "msg", "支払済みにしました。");
+  }
+  if (kind === "share") {
+    const id = str(fd, "providerId");
+    const bps = Math.round(Number(fd.get("sharePct")) * 100);
+    if (!(bps >= 0 && bps <= 10000)) back("/admin/payouts", "error", "分配率は 0〜100% で入力してください。");
+    await prisma.provider.update({ where: { id }, data: { revenueShareBps: bps } });
+    await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "provider", objectId: id, action: "set_revenue_share", data: { bps } });
+    back("/admin/payouts", "msg", "分配率を更新しました（次回以降の精算書に適用）。");
+  }
 }
