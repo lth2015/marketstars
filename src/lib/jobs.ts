@@ -3,6 +3,7 @@ import { applyScheduledDowngrades, expireDue, renewDue } from "./subscriptions";
 import { computeRanking } from "./catalog";
 import { billUsage } from "./usage";
 import { autoPayouts } from "./payouts";
+import { anchorLedger, ingestLedger } from "./ledger";
 
 /** 以 JobLock 行实现跨副本互斥（5 分钟租约），任务本身也是幂等的。 */
 async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | "locked"> {
@@ -28,11 +29,13 @@ export async function runJobs() {
   // 月初：上月按量账单 → 供应商结算单（均幂等）
   const usage = await withLock("usage", () => billUsage());
   const payouts = await withLock("payouts", () => autoPayouts());
+  // 资金事件写入防篡改台帐；链头变化时生成锚点
+  const ledger = await withLock("ledger", async () => ({ appended: await ingestLedger(), anchor: (await anchorLedger())?.seq ?? null }));
   const last = await prisma.jobLock.findUnique({ where: { name: "ranking" } });
   const rankingDue = !last?.lastRunAt || Date.now() - last.lastRunAt.getTime() > 55 * 60000;
   const ranking = rankingDue ? await withLock("ranking", () => computeRanking()) : "skipped";
   await prisma.authState.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 3600000) } } });
   await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.launchTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86400000) } } });
-  return { downgraded, renewed, expired, usage, payouts, ranking };
+  return { downgraded, renewed, expired, usage, payouts, ledger, ranking };
 }

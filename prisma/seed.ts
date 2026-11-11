@@ -69,7 +69,7 @@ function shot(color: string, title: string, n: number) {
 
 async function main() {
   await prisma.$transaction([
-    prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
+    prisma.ledgerAnchor.deleteMany(), prisma.ledgerEntry.deleteMany(), prisma.agentTransaction.deleteMany(), prisma.agentMandate.deleteMany(), prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
     prisma.applicationRequest.deleteMany(), prisma.subscription.deleteMany(), prisma.trialUsage.deleteMany(), prisma.inquiry.deleteMany(),
     prisma.contentEntry.deleteMany(), prisma.appRelease.deleteMany(), prisma.planVersion.deleteMany(), prisma.app.deleteMany(),
     prisma.provider.deleteMany(), prisma.category.deleteMany(), prisma.industry.deleteMany(), prisma.integrationTag.deleteMany(),

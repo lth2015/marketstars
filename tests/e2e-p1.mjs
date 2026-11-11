@@ -86,11 +86,8 @@ await step("P1-4 plan change on paid: scheduled for period end, cancellable", as
 });
 
 await step("P1-5 free → paid upgrade via card switches plan immediately", async () => {
-  await page.goto(`${BASE}/apps/faq-bot`);
-  await page.locator(".cta-main").getByRole("link").click();
-  await page.waitForURL(/apply/);
   // 体験ありのビジネスプランではなくフリーを選ぶ
-  await page.goto(page.url().replace(/\?.*$/, ""));
+  await page.goto(`${BASE}/apps/faq-bot/apply`);
   await page.locator(".plan-card", { hasText: "フリー" }).getByRole("link", { name: "無料で利用開始" }).click();
   await agreeAndSubmit("無料で利用開始");
   await page.waitForURL(/done=1/);

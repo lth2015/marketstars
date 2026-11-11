@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MarketStars API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     MarketStars 拟建接口（不是 SSO 已有路径）。浏览器端接口使用同源 BFF 的 HttpOnly 会话 Cookie；
     写入需 X-CSRF-Token（由 GET /api/v1/me 返回）与 Idempotency-Key。接入应用的服务端接口使用
@@ -13,6 +13,7 @@ components:
     session: { type: apiKey, in: cookie, name: ms_session }
     appClient: { type: http, scheme: basic }
     jobToken: { type: http, scheme: bearer }
+    agentKey: { type: http, scheme: bearer, description: "AgentPay 授权 key（msk_…），由空间 owner 在 /my/agents 发行" }
   schemas:
     Problem:
       type: object
@@ -224,6 +225,41 @@ paths:
       summary: 上传的图片（PNG/JPEG/WebP）
       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: 图片 }, "404": { description: Not found } }
+  /api/agent/v1/mandate:
+    get:
+      summary: AgentPay：当前授权、剩余预算
+      security: [{ agentKey: [] }]
+      responses: { "200": { description: OK }, "401": { description: key 无效、已撤销或过期 } }
+  /api/agent/v1/apps:
+    get:
+      summary: AgentPay：搜索允许购买的应用（与 /api/v1/apps 相同的查询参数）
+      security: [{ agentKey: [] }]
+      responses: { "200": { description: OK }, "403": { description: 无 catalog 权限 } }
+  /api/agent/v1/subscriptions:
+    get:
+      summary: AgentPay：空间当前的有效订阅
+      security: [{ agentKey: [] }]
+      responses: { "200": { description: OK } }
+    post:
+      summary: AgentPay：在授权范围内开通应用（付费套餐用空间已登记的卡支付，自动续费关闭）
+      security: [{ agentKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app_slug, plan_id, expected_price_jpy, idempotency_key]
+              properties:
+                app_slug: { type: string }
+                plan_id: { type: string }
+                expected_price_jpy: { type: integer }
+                mode: { type: string, enum: [trial, start], default: start }
+                idempotency_key: { type: string, pattern: "^[A-Za-z0-9_-]{8,48}$" }
+      responses:
+        "201": { description: approved（同一 idempotency_key 重试返回同一结果） }
+        "402": { description: denied（超出单笔上限 / 月预算 / 应用范围 / 无卡），reason 说明原因 }
+        "409": { description: failed（例如卡被拒、已有订阅） }
   /api/healthz:
     get: { summary: Liveness, responses: { "200": { description: OK } } }
   /api/readyz:
