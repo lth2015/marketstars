@@ -65,13 +65,20 @@ try {
     await see(page.getByRole("heading", { name: "Free trial" }));
     await see(page.getByRole("link", { name: "Open app" }));
   });
-  await step("I5 billing, notifications, help, contact and 404 are localized", async () => {
+  await step("I5 billing (incl. payment errors), notifications, help, contact and 404 are localized", async () => {
     await page.goto(`${BASE}/my/billing`);
     await see(page.getByRole("heading", { name: "Billing", exact: true }));
     await see(page.getByRole("heading", { name: "Payment methods" }));
     await page.getByText("Add a card").click();
     await see(page.getByLabel("Card number"));
     await see(page.getByRole("button", { name: "Save card" }));
+    // 业务错误（决済代行的拒绝）也以英文显示
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("Card number").fill("4000 0000 0000 0002");
+    await page.getByLabel("Expiry (MM/YY)").fill("12/30");
+    await page.getByLabel("Security code").fill("123");
+    await page.getByRole("button", { name: "Save card" }).click();
+    await see(page.getByRole("alert").filter({ hasText: "This card cannot be used." }));
     await page.goto(`${BASE}/my/notifications`);
     await see(page.getByRole("heading", { name: "Notifications" }));
     await page.goto(`${BASE}/help`);
