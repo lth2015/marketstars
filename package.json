@@ -15,7 +15,8 @@
     "ops:grant": "tsx scripts/grant-operator.ts",
     "test:e2e:oidc": "node tests/e2e-oidc.mjs",
     "prebuild": "node scripts/copy-fonts.mjs",
-    "predev": "node scripts/copy-fonts.mjs"
+    "predev": "node scripts/copy-fonts.mjs",
+    "sso:doctor": "tsx scripts/sso-doctor.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

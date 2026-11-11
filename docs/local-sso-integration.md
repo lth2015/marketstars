@@ -77,6 +77,11 @@ cp .env.local-sso.example .env.local-sso
 ```bash
 set -a; . ./.env.local-sso; set +a
 ```
+先跑接入预检，确认配置和 SSO 的实际行为一致（不需要浏览器，不改任何数据）：
+```bash
+npm run sso:doctor
+```
+它会逐项检查：必需变量、redirect URI 与 `APP_BASE_URL` 是否一致、DNS（`*.localhost`）、discovery、issuer 是否与 `OIDC_ISSUER` **完全一致**（含末尾斜杠）、PKCE S256、JWKS、client 凭据（用无效 code 换 token：`invalid_client` 说明 secret 或认证方式不对，`invalid_grant` 说明凭据正确）、redirect URI 是否已登记、平台 API 未带 token 时是否返回 401。有 FAIL 时退出码为 1，按提示修正后再继续。
 ```bash
 npx prisma migrate deploy && npm run db:seed && npm run build
 ```
