@@ -672,3 +672,13 @@ model WebhookDelivery {
   @@unique([endpointId, eventId])
   @@index([status, nextAttemptAt])
 }
+
+/// 限流计数（固定窗口，多副本共享）。key 例：auth:ip:203.0.113.1
+model RateLimit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}

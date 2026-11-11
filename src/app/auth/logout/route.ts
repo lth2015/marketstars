@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   const fd = await req.formData();
   const s = await destroySession();
   if (s?.authMode === "oidc") await revokeTokens(s);
-  if (fd.get("global") === "1" && config.sso.logoutUrl) return NextResponse.redirect(config.sso.logoutUrl, 303);
-  return NextResponse.redirect(new URL("/?logged_out=1", req.url), 303);
+  // 全设备退出：先完成本地退出，再经中间页跳到 SSO 确认页（表单提交后不直接跨站重定向，CSP form-action 保持 'self'）
+  if (fd.get("global") === "1" && config.sso.logoutUrl) return NextResponse.redirect(new URL("/auth/logged-out?global=1", config.baseUrl), 303);
+  return NextResponse.redirect(new URL("/?logged_out=1", config.baseUrl), 303);
 }

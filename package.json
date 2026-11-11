@@ -13,13 +13,16 @@
     "db:seed": "tsx prisma/seed.ts",
     "jobs:run": "tsx scripts/run-jobs.ts",
     "ops:grant": "tsx scripts/grant-operator.ts",
-    "test:e2e:oidc": "node tests/e2e-oidc.mjs"
+    "test:e2e:oidc": "node tests/e2e-oidc.mjs",
+    "prebuild": "node scripts/copy-fonts.mjs",
+    "predev": "node scripts/copy-fonts.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
+    "@fontsource/noto-sans-jp": "^5.2.8",
     "@prisma/client": "^6.16.2",
     "jose": "^6.1.0",
     "next": "^15.5.4",

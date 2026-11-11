@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { problem } from "@/lib/api";
 import { BizError, settleIntent } from "@/lib/subscriptions";
 import { audit } from "@/lib/audit";
+import { limitIp, LIMITS, tooMany } from "@/lib/ratelimit";
 
 /**
  * 支付服务商的异步通知（3DS 等延迟确认场景）。签名：hex(HMAC-SHA256(PAYMENT_WEBHOOK_SECRET, rawBody))
@@ -11,6 +12,8 @@ import { audit } from "@/lib/audit";
 export async function POST(req: Request) {
   const secret = process.env.PAYMENT_WEBHOOK_SECRET;
   if (!secret) return problem(503, "not_configured", "webhook secret not configured");
+  const rl = await limitIp("paywh", LIMITS.paymentWebhook, req);
+  if (!rl.ok) return tooMany(rl.retryAfter);
   const raw = await req.text();
   const sig = req.headers.get("x-payment-signature") ?? "";
   const expect = crypto.createHmac("sha256", secret).update(raw).digest("hex");

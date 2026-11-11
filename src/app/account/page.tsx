@@ -20,7 +20,7 @@ export default async function AccountPage() {
           {op && <><dt>運営権限</dt><dd>{op.role} — <Link href="/admin">運営管理へ</Link></dd></>}
         </dl>
         <div className="row">
-          <Link className="btn btn-secondary btn-sm" href="/auth/switch?returnTo=/my/apps">空間を切り替える</Link>
+          <a className="btn btn-secondary btn-sm" href="/auth/switch?returnTo=/my/apps">空間を切り替える</a>
           {config.sso.consoleUrl && <a className="btn btn-ghost btn-sm" href={config.sso.consoleUrl}>組織・メンバーを管理（共通 SSO）</a>}
           {config.sso.accountUrl && <a className="btn btn-ghost btn-sm" href={config.sso.accountUrl}>プロフィール・セキュリティ（共通 SSO）</a>}
         </div>

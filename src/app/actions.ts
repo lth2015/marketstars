@@ -6,6 +6,7 @@ import { setUsageCap, addPaymentMethod, applyForApp, BizError, cancelPlanChange,
 import { submitReview } from "@/lib/reviews";
 import { createMandate, revokeMandate } from "@/lib/agentpay";
 import { visibleWhere } from "@/lib/notifications";
+import { hit, limitIp, LIMITS } from "@/lib/ratelimit";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
 
@@ -19,6 +20,7 @@ async function requireSession() {
 
 export async function applyAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
+  if (!(await hit(`apply:user:${s.userId}`, LIMITS.apply)).ok) return { error: "操作が多すぎます。しばらくしてから再度お試しください。" };
   let subId: string;
   let intentId: string | null = null;
   try {
@@ -63,6 +65,8 @@ export async function subscriptionAction(fd: FormData) {
 
 export async function inquiryAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await getSession();
+  const rl = await limitIp("contact", LIMITS.contact);
+  if (!rl.ok) return { error: `送信回数が多すぎます。${Math.ceil(rl.retryAfter / 60)} 分ほど待ってから再度お試しください。` };
   const name = String(fd.get("name") ?? "").trim();
   const email = String(fd.get("email") ?? "").trim();
   const message = String(fd.get("message") ?? "").trim();
@@ -85,6 +89,7 @@ const cardFrom = (fd: FormData) => {
 
 export async function payAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
+  if (!(await hit(`pay:user:${s.userId}`, LIMITS.apply)).ok) return { error: "操作が多すぎます。しばらくしてから再度お試しください。" };
   const intentId = String(fd.get("intentId"));
   const pmId = String(fd.get("paymentMethodId") ?? "");
   let subId: string;

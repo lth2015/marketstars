@@ -39,7 +39,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
   if (!plan) {
     return (
       <Shell>
-        <p>申込先の空間：<strong>{s.tenantName}</strong>　<Link className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply`)}`}>空間を切り替える</Link></p>
+        <p>申込先の空間：<strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply`)}`}>空間を切り替える</a></p>
         <div className="plan-grid">
           {app.plans.map((p) => {
             const canTrial = p.trialDays > 0 && p.priceType !== "free" && !trialUsed;
@@ -69,7 +69,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
     <Shell>
       <div className="panel stack">
         <dl className="dl">
-          <dt>申込先の空間</dt><dd><strong>{s.tenantName}</strong>　<Link className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply?plan=${plan.id}&mode=${mode}`)}`}>切り替える</Link></dd>
+          <dt>申込先の空間</dt><dd><strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply?plan=${plan.id}&mode=${mode}`)}`}>切り替える</a></dd>
           <dt>アプリ</dt><dd>{app.name}（{app.provider.name}）</dd>
           <dt>プラン</dt><dd>{plan.name}</dd>
           <dt>課金単位</dt><dd>1空間あたり／月</dd>

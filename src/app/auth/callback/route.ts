@@ -3,13 +3,17 @@ import { exchangeCode, fetchIdentity } from "@/lib/sso";
 import { createSession, destroySession } from "@/lib/session";
 import { config } from "@/lib/config";
 import { safeReturnTo } from "@/lib/text";
+import { limitIp, LIMITS, tooMany } from "@/lib/ratelimit";
+import { log } from "@/lib/log";
 
 export async function GET(req: NextRequest) {
+  const rl = await limitIp("authcb", LIMITS.authCallback, req);
+  if (!rl.ok) return tooMany(rl.retryAfter);
   const p = req.nextUrl.searchParams;
   const state = p.get("state");
   const code = p.get("code");
   if (p.get("error") || !state || !code) {
-    console.error(JSON.stringify({ severity: "WARNING", message: "auth.callback.failed", reason: p.get("error") ?? "missing_params" }));
+    await log("WARNING", "auth.callback.failed", { reason: p.get("error") ?? "missing_params" });
     return NextResponse.redirect(`${config.baseUrl}/auth/login?error=callback`);
   }
   try {
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.redirect(config.baseUrl + safeReturnTo(returnTo));
   } catch (e) {
-    console.error(JSON.stringify({ severity: "ERROR", message: "auth.callback.failed", error: String(e) }));
+    await log("ERROR", "auth.callback.failed", { error: String(e) });
     return NextResponse.redirect(`${config.baseUrl}/auth/login?error=callback`);
   }
 }

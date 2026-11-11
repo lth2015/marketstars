@@ -4,6 +4,8 @@ import { authenticateAppClient, problem } from "@/lib/api";
 import { isEntitled, liveSubscription } from "@/lib/subscriptions";
 import { ALLOWED_MODELS, DEFAULT_MODEL, chat, type ChatMessage } from "@/lib/models/gateway";
 import { costMilli, monthUsage } from "@/lib/usage";
+import { hit, LIMITS, tooMany } from "@/lib/ratelimit";
+import { log } from "@/lib/log";
 
 /**
  * 统一模型网关：接入应用用自身 client 凭证代表租户调用模型。
@@ -21,6 +23,8 @@ export async function POST(req: Request) {
   const model = b.model ?? DEFAULT_MODEL();
   if (!(ALLOWED_MODELS as readonly string[]).includes(model)) return problem(400, "invalid_model", `model must be one of ${ALLOWED_MODELS.join(", ")}`);
 
+  const rl = await hit(`model:${app.id}:${b.tenant_id}`, LIMITS.modelGateway);
+  if (!rl.ok) return tooMany(rl.retryAfter);
   const sub = await liveSubscription(b.tenant_id, app.id);
   if (!sub || !isEntitled(sub) || app.suspendedReason) return problem(403, "not_entitled", "tenant has no active entitlement");
   const dup = await prisma.usageEvent.findUnique({ where: { appId_requestId: { appId: app.id, requestId: b.request_id } } });
@@ -35,7 +39,7 @@ export async function POST(req: Request) {
   try {
     r = await chat({ model, system: b.system, messages: b.messages, maxTokens: Math.min(Math.max(16, b.max_tokens ?? 1024), 4096), effort: b.effort });
   } catch (e) {
-    console.error(JSON.stringify({ severity: "ERROR", message: "model.gateway.failed", app: app.slug, error: String(e) }));
+    await log("ERROR", "model.gateway.failed", { app: app.slug, error: String(e) });
     return problem(502, "model_error", "model provider error");
   }
   const tokens = r.inputTokens + r.outputTokens;

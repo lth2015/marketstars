@@ -14,7 +14,7 @@ export default async function Ledger() {
   ]);
   return (
     <div className="stack">
-      <div className="section-head"><h1 style={{ margin: 0 }}>精算台帳（改ざん検知）</h1><Link className="btn btn-secondary btn-sm" href="/admin/ledger/export">JSON 出力</Link></div>
+      <div className="section-head"><h1 style={{ margin: 0 }}>精算台帳（改ざん検知）</h1><a className="btn btn-secondary btn-sm" href="/admin/ledger/export">JSON 出力</a></div>
       <p className="small muted">入金・返金・提供会社への支払いを発生順にハッシュチェーンで記録します（追記のみ）。各記録は直前の記録のハッシュを含むため、過去の記録を書き換えると以降の検証が失敗します。アンカー（先頭ハッシュ）は外部公開やブロックチェーンへの記録に使えますが、<strong>現在はブロックチェーンには接続していません</strong>。</p>
       {check.ok ? <div className="alert alert-ok">検証 OK：{check.count} 件、先頭ハッシュ <code style={{ wordBreak: "break-all" }}>{check.head}</code></div>
         : <div className="alert alert-error" role="alert">検証エラー：#{check.brokenAt} — {check.reason}</div>}

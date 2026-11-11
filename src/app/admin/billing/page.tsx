@@ -10,7 +10,7 @@ export default async function AdminBilling({ searchParams }: { searchParams: Pro
   const rows = await prisma.billingRecord.findMany({ include: { subscription: { include: { app: true } } }, orderBy: { createdAt: "desc" }, take: 200 });
   return (
     <div className="stack">
-      <div className="section-head"><h1 style={{ margin: 0 }}>請求記録</h1><Link className="btn btn-secondary btn-sm" href="/admin/billing/export">CSV 出力</Link></div>
+      <div className="section-head"><h1 style={{ margin: 0 }}>請求記録</h1><a className="btn btn-secondary btn-sm" href="/admin/billing/export">CSV 出力</a></div>
       <Flash msg={sp.msg} error={sp.error} />
       {rows.length === 0 ? <div className="empty">請求記録はまだありません。申込処理で入金を確認すると記録されます。</div> : (
         <div className="table-wrap"><table className="table">

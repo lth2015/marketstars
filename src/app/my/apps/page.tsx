@@ -27,7 +27,7 @@ export default async function MyApps() {
     <div className="container" style={{ paddingBottom: 64 }}>
       <div className="breadcrumb"><Link href="/">ホーム</Link> ／ マイアプリ</div>
       <div className="section-head" style={{ marginTop: 12 }}>
-        <div><h1 style={{ marginBottom: 4 }}>マイアプリ</h1><div className="muted small">空間：<strong>{s.tenantName}</strong>（{s.isOwner ? "オーナー" : "メンバー"}） <Link href="/auth/switch?returnTo=/my/apps">切り替える</Link></div></div>
+        <div><h1 style={{ marginBottom: 4 }}>マイアプリ</h1><div className="muted small">空間：<strong>{s.tenantName}</strong>（{s.isOwner ? "オーナー" : "メンバー"}） <a href="/auth/switch?returnTo=/my/apps">切り替える</a></div></div>
         <div className="row"><Link href="/my/agents" className="btn btn-ghost btn-sm">AIエージェント</Link><Link href="/my/billing" className="btn btn-secondary btn-sm">請求・お支払い</Link></div>
       </div>
       {subs.length === 0 && <div className="empty"><p>この空間で利用中のアプリはまだありません。</p><Link className="btn btn-primary" href="/apps">アプリを探す</Link></div>}
@@ -55,7 +55,7 @@ export default async function MyApps() {
                       </div>
                     </div>
                     <div className="row">
-                      {ok && <Link className="btn btn-primary btn-sm" href={`/launch/${sub.id}`}>アプリを開く</Link>}
+                      {ok && <a className="btn btn-primary btn-sm" href={`/launch/${sub.id}`}>アプリを開く</a>}
                       <Link className="btn btn-secondary btn-sm" href={`/my/apps/${sub.id}`}>契約内容</Link>
                     </div>
                   </div>

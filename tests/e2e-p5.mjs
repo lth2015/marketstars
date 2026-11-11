@@ -12,7 +12,7 @@ const page = await (await browser.newContext({ viewport: { width: 1440, height: 
 const results = [];
 async function step(name, fn) {
   try { await fn(); results.push(["PASS", name]); console.log("PASS", name); }
-  catch (e) { results.push(["FAIL", name]); console.log("FAIL", name, e.message.split("\n")[0], page.url()); }
+  catch (e) { results.push(["FAIL", name]); console.log("FAIL", name, e.message.split("\n")[0], page.url()); if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/fail-${name.split(" ")[0]}.png`, fullPage: true }).catch(() => {}); }
 }
 async function login(userName, tenantLabel, returnTo = "/") {
   await page.goto(`${BASE}/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
