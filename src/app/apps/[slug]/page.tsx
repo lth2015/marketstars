@@ -6,7 +6,7 @@ import { getSession, isOperator } from "@/lib/session";
 import { getDeveloper } from "@/lib/developer";
 import { liveSubscription } from "@/lib/subscriptions";
 import { computeCta } from "@/lib/cta";
-import { priceLabel } from "@/lib/text";
+import { yen } from "@/lib/text";
 import { formatJst } from "@/lib/time";
 import { isNew } from "@/lib/catalog";
 import { PriceText } from "@/components/AppCard";
@@ -101,134 +101,134 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
     <div className="container">
       {!preview && <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLd(app) }} />}
       {preview && <div className="alert alert-warn" style={{ marginTop: 16 }}>運営プレビュー：{draft ? "未公開の下書き内容を表示しています。" : `ステータス ${app.status}`}</div>}
-      <div className="breadcrumb"><Link href="/">ホーム</Link> ／ <Link href="/apps">アプリ一覧</Link> ／ {view.name}</div>
+      <div className="breadcrumb"><Link href="/">{t.nav.home}</Link> ／ <Link href="/apps">{t.nav.apps}</Link> ／ {view.name}</div>
       <div className="detail-layout">
         <div>
           <div className="detail-head">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="app-icon" src={view.iconUrl ?? "/placeholder-icon.svg"} alt={`${view.name} のアイコン`} />
+            <img className="app-icon" src={view.iconUrl ?? "/placeholder-icon.svg"} alt="" />
             <div>
               <div className="tags" style={{ marginTop: 0 }}>
-                {app.recommendWeight > 0 && <span className="tag tag-rec">おすすめ</span>}
+                {app.recommendWeight > 0 && <span className="tag tag-rec">{t.ui.badge.recommended}</span>}
                 {isNew(app) && <span className="tag tag-new">NEW</span>}
                 {app.categories.map((c) => <Link key={c.slug} className="tag" href={`/apps?category=${c.slug}`}>{c.name}</Link>)}
               </div>
               <h1 style={{ marginTop: 6 }}>{view.name}</h1>
               <div className="muted">{app.provider.name} <Stars value={app.ratingAvg} count={app.ratingCount} /></div>
               <p style={{ margin: "12px 0 0" }}>{view.tagline}</p>
-              <div className="small muted" style={{ marginTop: 8 }}>対象業種：{app.industries.map((i) => i.name).join("・") || "—"} ／ 連携：{app.integrationTags.map((i) => i.name).join("・") || "—"}</div>
-              {app.integrationType === "external" && <div className="alert alert-info small" style={{ marginTop: 12, marginBottom: 0 }}>外部サービスです。アプリを開いた後、提供会社のサービスで別途ログインが必要な場合があります。</div>}
+              <div className="small muted" style={{ marginTop: 8 }}>{t.ui.detail.industries}：{app.industries.map((i) => i.name).join("・") || "—"} ／ {t.ui.detail.integrations}：{app.integrationTags.map((i) => i.name).join("・") || "—"}</div>
+              {app.integrationType === "external" && <div className="alert alert-info small" style={{ marginTop: 12, marginBottom: 0 }}>{t.ui.detail.externalNotice}</div>}
             </div>
           </div>
 
-          <nav className="anchor-nav" aria-label="ページ内">
-            <a href="#overview">概要</a><a href="#plans">料金プラン</a><a href="#reviews">レビュー</a><a href="#cases">導入事例</a><a href="#support">サポート</a>
+          <nav className="anchor-nav" aria-label={t.ui.detail.inPage}>
+            <a href="#overview">{t.ui.detail.overview}</a><a href="#plans">{t.ui.detail.plans}</a><a href="#reviews">{t.ui.detail.reviews}</a><a href="#cases">{t.ui.detail.cases}</a><a href="#support">{t.ui.detail.support}</a>
           </nav>
 
           {shots.length > 0 ? (
-            <div className="gallery" aria-label="スクリーンショット">
+            <div className="gallery" aria-label={t.ui.detail.screenshots}>
               {shots.map((s, i) => (
-                <a key={i} href={`#shot-${i}`} aria-label={`${s.alt}を拡大`}>
+                <a key={i} href={`#shot-${i}`} aria-label={t.ui.detail.enlarge(s.alt)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.url} alt={s.alt} width={1280} height={800} loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "auto"} decoding="async" />
                 </a>
               ))}
             </div>
           ) : (
-            <div className="empty small">スクリーンショットは準備中です</div>
+            <div className="empty small">{t.ui.detail.noScreens}</div>
           )}
           {shots.map((s, i) => (
             <div key={i} id={`shot-${i}`} className="lightbox" role="dialog" aria-label={s.alt}>
-              <a className="close" href="#overview" aria-label="閉じる">×</a>
-              {i > 0 && <a href={`#shot-${i - 1}`} className="btn btn-sm" style={{ position: "absolute", left: 16 }}>前へ</a>}
+              <a className="close" href="#overview" aria-label={t.ui.detail.close}>×</a>
+              {i > 0 && <a href={`#shot-${i - 1}`} className="btn btn-sm" style={{ position: "absolute", left: 16 }}>{t.ui.detail.prev}</a>}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.url} alt={s.alt} loading="lazy" decoding="async" />
-              {i < shots.length - 1 && <a href={`#shot-${i + 1}`} className="btn btn-sm" style={{ position: "absolute", right: 16 }}>次へ</a>}
+              {i < shots.length - 1 && <a href={`#shot-${i + 1}`} className="btn btn-sm" style={{ position: "absolute", right: 16 }}>{t.ui.detail.next}</a>}
             </div>
           ))}
 
           <section id="overview" className="section">
-            <h2>概要</h2>
+            <h2>{t.ui.detail.overview}</h2>
             <div className="panel prose">
-              {overview.problem && <><h3>解決できること</h3><p>{overview.problem}</p></>}
-              {!!overview.features?.length && <><h3>主な機能</h3><ul>{overview.features.map((f) => <li key={f}>{f}</li>)}</ul></>}
+              {overview.problem && <><h3>{t.ui.detail.solves}</h3><p>{overview.problem}</p></>}
+              {!!overview.features?.length && <><h3>{t.ui.detail.features}</h3><ul>{overview.features.map((f) => <li key={f}>{f}</li>)}</ul></>}
               <dl className="dl" style={{ marginTop: 16 }}>
-                {overview.prerequisites && <><dt>利用の前提</dt><dd>{overview.prerequisites}</dd></>}
-                {overview.dataNeeds && <><dt>利用するデータ</dt><dd>{overview.dataNeeds}</dd></>}
-                {!!overview.setup?.length && <><dt>設定の流れ</dt><dd><ol style={{ margin: 0, paddingLeft: 20 }}>{overview.setup.map((s) => <li key={s}>{s}</li>)}</ol></dd></>}
-                {overview.limitations && <><dt>制限事項</dt><dd>{overview.limitations}</dd></>}
+                {overview.prerequisites && <><dt>{t.ui.detail.prerequisites}</dt><dd>{overview.prerequisites}</dd></>}
+                {overview.dataNeeds && <><dt>{t.ui.detail.dataNeeds}</dt><dd>{overview.dataNeeds}</dd></>}
+                {!!overview.setup?.length && <><dt>{t.ui.detail.setup}</dt><dd><ol style={{ margin: 0, paddingLeft: 20 }}>{overview.setup.map((s) => <li key={s}>{s}</li>)}</ol></dd></>}
+                {overview.limitations && <><dt>{t.ui.detail.limitations}</dt><dd>{overview.limitations}</dd></>}
               </dl>
             </div>
           </section>
 
           <section id="plans" className="section">
-            <h2>料金プラン</h2>
+            <h2>{t.ui.detail.plans}</h2>
             <div className="plan-grid">
               {app.plans.map((p) => (
                 <div key={p.id} className="plan-card">
                   <h3>{p.name}</h3>
-                  <div className="price">{priceLabel(p)}</div>
+                  <div className="price">{p.priceType === "free" ? t.ui.price.free : p.priceType === "contact" ? t.ui.price.contact : `${yen(p.priceJpy)}${t.ui.price.perMonth}`}</div>
                   {p.priceType === "monthly" && <div className="small muted">{t.perTenant}</div>}
-                  {p.tokenPriceJpyPerMTok > 0 && <div className="small" style={{ marginTop: 4 }}>＋ AI 従量：¥{p.tokenPriceJpyPerMTok.toLocaleString()} / 100万トークン（月末締め）</div>}
-                  {p.trialDays > 0 && p.priceType !== "free" && <div style={{ marginTop: 8 }}><span className="tag tag-trial">{p.trialDays}日間無料体験</span><div className="small muted" style={{ marginTop: 4 }}>体験終了後に自動課金はありません</div></div>}
+                  {p.tokenPriceJpyPerMTok > 0 && <div className="small" style={{ marginTop: 4 }}>{t.ui.detail.tokenPrice(`¥${p.tokenPriceJpyPerMTok.toLocaleString()}`)}</div>}
+                  {p.trialDays > 0 && p.priceType !== "free" && <div style={{ marginTop: 8 }}><span className="tag tag-trial">{t.ui.price.trialDays(p.trialDays)}</span><div className="small muted" style={{ marginTop: 4 }}>{t.ui.detail.trialNoAuto}</div></div>}
                   <div className="prose small" style={{ marginTop: 12 }}><p>{p.includes}</p>{p.limits && <p className="muted">{p.limits}</p>}</div>
-                  {p.externalContractRequired && <div className="alert alert-warn small" style={{ marginBottom: 0 }}>提供会社との別途契約が必要です</div>}
+                  {p.externalContractRequired && <div className="alert alert-warn small" style={{ marginBottom: 0 }}>{t.ui.detail.externalContract}</div>}
                 </div>
               ))}
             </div>
           </section>
 
           <section id="reviews" className="section">
-            <div className="section-head"><h2 style={{ margin: 0 }}>レビュー</h2><Stars value={app.ratingAvg} count={app.ratingCount} size={16} /></div>
-            {reviews.length === 0 && <div className="empty small">まだレビューはありません。</div>}
+            <div className="section-head"><h2 style={{ margin: 0 }}>{t.ui.detail.reviews}</h2><Stars value={app.ratingAvg} count={app.ratingCount} size={16} /></div>
+            {reviews.length === 0 && <div className="empty small">{t.ui.detail.noReviews}</div>}
             <div className="stack">
               {reviews.map((r) => (
                 <article key={r.id} className="panel">
                   <div className="row" style={{ justifyContent: "space-between" }}><Stars value={r.rating} count={1} /><span className="small muted">{maskName(r.userName)} ・ {formatJst(r.createdAt)}</span></div>
                   <h3 style={{ margin: "6px 0" }}>{r.title}</h3>
                   <p style={{ margin: 0, whiteSpace: "pre-line" }}>{r.body}</p>
-                  {r.replyBody && <div className="alert alert-info small" style={{ margin: "12px 0 0" }}><strong>提供会社からの返信</strong><br />{r.replyBody}</div>}
+                  {r.replyBody && <div className="alert alert-info small" style={{ margin: "12px 0 0" }}><strong>{t.ui.detail.providerReply}</strong><br />{r.replyBody}</div>}
                 </article>
               ))}
             </div>
             <div style={{ marginTop: 16 }}>
               {eligible ? <ReviewForm appId={app.id} slug={app.slug} initial={mine ? { rating: mine.rating, title: mine.title, body: mine.body } : undefined} />
-                : <p className="small muted">レビューは、この空間でアプリを利用したことのある方が投稿できます。{mine?.status === "hidden" && "（あなたのレビューは運営により非表示になっています）"}</p>}
+                : <p className="small muted">{t.ui.detail.canReviewHint}{mine?.status === "hidden" && "（あなたのレビューは運営により非表示になっています）"}</p>}
             </div>
           </section>
 
           <section id="cases" className="section">
-            <h2>導入事例</h2>
-            {app.cases.length === 0 ? <div className="empty small">公開できる導入事例はまだありません。</div> : app.cases.map((c) => (
+            <h2>{t.ui.detail.cases}</h2>
+            {app.cases.length === 0 ? <div className="empty small">{t.ui.detail.noCases}</div> : app.cases.map((c) => (
               <div key={c.id} className="panel" style={{ marginBottom: 12 }}><h3>{c.title}</h3><p className="small muted">{c.summary}</p><p style={{ margin: 0 }}>{c.body}</p></div>
             ))}
           </section>
 
           <section id="support" className="section" style={{ paddingBottom: 32 }}>
-            <h2>サポート</h2>
+            <h2>{t.ui.detail.support}</h2>
             <div className="panel">
               <dl className="dl">
-                <dt>提供会社</dt><dd>{app.provider.name}</dd>
-                {support.map((s) => <><dt key={s.type + "t"}>{s.type === "email" ? "メール" : s.type === "hours" ? "受付時間" : s.type}</dt><dd key={s.type + "v"}>{s.value}</dd></>)}
-                {app.privacyUrl && <><dt>プライバシー</dt><dd><a href={app.privacyUrl}>プライバシーポリシー</a></dd></>}
-                {app.termsUrl && <><dt>利用規約</dt><dd><a href={app.termsUrl}>利用規約</a></dd></>}
-                {app.version && <><dt>バージョン</dt><dd>{app.version}</dd></>}
-                <dt>更新日</dt><dd>{formatJst(app.contentUpdatedAt ?? app.updatedAt)}</dd>
+                <dt>{t.ui.detail.provider}</dt><dd>{app.provider.name}</dd>
+                {support.map((s) => <><dt key={s.type + "t"}>{s.type === "email" ? t.ui.detail.email : s.type === "hours" ? t.ui.detail.hours : s.type}</dt><dd key={s.type + "v"}>{s.value}</dd></>)}
+                {app.privacyUrl && <><dt>{t.ui.detail.privacy}</dt><dd><a href={app.privacyUrl}>{t.ui.detail.privacyPolicy}</a></dd></>}
+                {app.termsUrl && <><dt>{t.ui.detail.terms}</dt><dd><a href={app.termsUrl}>{t.ui.detail.terms}</a></dd></>}
+                {app.version && <><dt>{t.ui.detail.version}</dt><dd>{app.version}</dd></>}
+                <dt>{t.ui.detail.updated}</dt><dd>{formatJst(app.contentUpdatedAt ?? app.updatedAt)}</dd>
               </dl>
-              <div style={{ marginTop: 16 }}><Link href={`/contact?app=${app.slug}`} className="btn btn-secondary btn-sm">このアプリについて問い合わせる</Link></div>
+              <div style={{ marginTop: 16 }}><Link href={`/contact?app=${app.slug}`} className="btn btn-secondary btn-sm">{t.ui.detail.ask}</Link></div>
             </div>
           </section>
         </div>
 
         <aside className="action-box">
           <div className="panel stack">
-            <div><div className="small muted">料金</div><PriceText app={app} /></div>
-            {app.hasTrial && <span className="tag tag-trial">{app.maxTrialDays}日間無料体験あり</span>}
-            {session && <div className="small muted">申込先の空間：<strong style={{ color: "var(--text)" }}>{session.tenantName}</strong></div>}
-            {live && <div className="small">現在の状態：<span className={`badge st-${live.status}`}>{live.status === "trialing" ? `無料体験中（${formatJst(live.trialEndsAt)}まで）` : live.status === "pending" ? "申込中" : live.status === "cancel_scheduled" ? `解約予定（${formatJst(live.cancelAt)}）` : live.status === "suspended" ? "一時停止中" : "利用中"}</span></div>}
+            <div><div className="small muted">{t.ui.detail.price}</div><PriceText app={app} /></div>
+            {app.hasTrial && <span className="tag tag-trial">{t.ui.detail.trialAvail(app.maxTrialDays)}</span>}
+            {session && <div className="small muted">{t.ui.detail.applyingSpace}<strong style={{ color: "var(--text)" }}>{session.tenantName}</strong></div>}
+            {live && <div className="small">{t.ui.detail.currentState}<span className={`badge st-${live.status}`}>{t.status[live.status] ?? live.status}{live.status === "trialing" ? `（${formatJst(live.trialEndsAt)}）` : live.status === "cancel_scheduled" ? `（${formatJst(live.cancelAt)}）` : ""}</span></div>}
             <div className="cta-main"><CtaButton block /></div>
             {cta.note && <p id="cta-note" className="small muted" style={{ margin: 0 }}>{cta.note}</p>}
-            {live && (live.status === "trialing" || (live.status === "active" && live.kind === "free")) && session?.isOwner && app.plans.some((p) => p.priceType === "monthly") && <Link className="btn btn-secondary btn-block" href={`/my/apps/${live.id}#change`}>有料プランに切り替える</Link>}
+            {live && (live.status === "trialing" || (live.status === "active" && live.kind === "free")) && session?.isOwner && app.plans.some((p) => p.priceType === "monthly") && <Link className="btn btn-secondary btn-block" href={`/my/apps/${live.id}#change`}>{t.ui.detail.switchToPaid}</Link>}
           </div>
         </aside>
       </div>

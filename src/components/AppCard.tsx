@@ -2,18 +2,21 @@ import Link from "next/link";
 import type { CardApp } from "@/lib/catalog";
 import { isNew } from "@/lib/catalog";
 import { yen } from "@/lib/text";
+import { getMessages } from "@/lib/messages";
 import { Stars } from "./Stars";
 
-export function PriceText({ app }: { app: Pick<CardApp, "minMonthlyPrice" | "hasFreePlan"> & { plans: { priceType: string }[] } }) {
-  if (app.minMonthlyPrice === null) return <span className="price">要問い合わせ</span>;
-  if (app.minMonthlyPrice === 0) return <span className="price">無料<small>{app.plans.some((p) => p.priceType === "monthly") ? "プランあり" : ""}</small></span>;
-  return <span className="price">{yen(app.minMonthlyPrice)}<small>／月（税込）〜</small></span>;
+export async function PriceText({ app }: { app: Pick<CardApp, "minMonthlyPrice" | "hasFreePlan"> & { plans: { priceType: string }[] } }) {
+  const p = (await getMessages()).ui.price;
+  if (app.minMonthlyPrice === null) return <span className="price">{p.contact}</span>;
+  if (app.minMonthlyPrice === 0) return <span className="price">{p.free}<small>{app.plans.some((x) => x.priceType === "monthly") ? p.freePlanAvailable : ""}</small></span>;
+  return <span className="price">{yen(app.minMonthlyPrice)}<small>{p.fromPerMonth}</small></span>;
 }
 
-export function AppCard({ app }: { app: CardApp }) {
+export async function AppCard({ app }: { app: CardApp }) {
+  const m = await getMessages();
   const badges: React.ReactNode[] = [];
-  if (app.recommendWeight > 0) badges.push(<span key="r" className="tag tag-rec">おすすめ</span>);
-  if (isNew(app)) badges.push(<span key="n" className="tag tag-new">NEW</span>);
+  if (app.recommendWeight > 0) badges.push(<span key="r" className="tag tag-rec">{m.ui.badge.recommended}</span>);
+  if (isNew(app)) badges.push(<span key="n" className="tag tag-new">{m.ui.badge.isNew}</span>);
   return (
     <article className="app-card">
       <div className="top">
@@ -32,7 +35,7 @@ export function AppCard({ app }: { app: CardApp }) {
       </div>
       <div className="foot">
         <PriceText app={app} />
-        {app.hasTrial && <span className="tag tag-trial">{app.maxTrialDays}日間無料体験</span>}
+        {app.hasTrial && <span className="tag tag-trial">{m.ui.price.trialDays(app.maxTrialDays)}</span>}
       </div>
     </article>
   );
