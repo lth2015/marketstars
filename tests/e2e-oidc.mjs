@@ -47,6 +47,16 @@ async function ssoLogin(tenantName, totp = "123456") {
 }
 
 try {
+  await step("O0 sso:doctor preflight passes against the SSO and catches a wrong client secret", async () => {
+    const doctorEnv = { AUTH_MODE: "oidc", APP_BASE_URL: MS, OIDC_ISSUER: `${SSO}/`, OIDC_CLIENT_ID: "marketstars-local", OIDC_CLIENT_SECRET: "mock-client-secret", OIDC_REDIRECT_URI: `${MS}/auth/callback`,
+      SSO_API_BASE_URL: SSO, SSO_API_AUDIENCE: "https://api.sso.local", SESSION_SECRET: "0123456789abcdef0123456789abcdef", SSO_LOGOUT_URL: `${SSO}/sso/logout`, SSO_ACCOUNT_URL: `${SSO}/account`, OPERATOR_SSO_TENANT_ID: T_OPS };
+    const out = execSync("npx tsx scripts/sso-doctor.ts", { env: { ...process.env, ...doctorEnv } }).toString();
+    assert.match(out, /0 failed/);
+    assert.match(out, /client credentials accepted/);
+    let failed = "";
+    try { execSync("npx tsx scripts/sso-doctor.ts", { env: { ...process.env, ...doctorEnv, OIDC_CLIENT_SECRET: "wrong" }, stdio: "pipe" }); } catch (e) { failed = e.stdout.toString(); }
+    assert.match(failed, /FAIL client credentials/);
+  });
   await step("O1 (A04) guest → login via SSO with MFA → returns to the app, no auto purchase", async () => {
     await page.goto(`${MS}/apps/pop-writer`);
     await page.locator(".cta-main a", { hasText: "ログインして利用する" }).click();
