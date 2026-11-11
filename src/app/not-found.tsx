@@ -1,4 +1,7 @@
 import Link from "next/link";
-export default function NotFound() {
-  return <div className="container" style={{ padding: "64px 16px" }}><h1>ページが見つかりません</h1><p className="muted">URL が変更されたか、公開が終了した可能性があります。</p><Link className="btn btn-primary" href="/apps">アプリ一覧へ</Link></div>;
+import { getMessages } from "@/lib/messages";
+
+export default async function NotFound() {
+  const E = (await getMessages()).ui.errors;
+  return <div className="container" style={{ padding: "64px 16px" }}><h1>{E.notFound}</h1><p className="muted">{E.notFoundBody}</p><Link className="btn btn-primary" href="/apps">{E.toApps}</Link></div>;
 }

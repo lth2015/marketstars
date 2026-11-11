@@ -170,7 +170,7 @@ export async function reviewAction(_: FormState, fd: FormData): Promise<FormStat
     if (e instanceof BizError) return { error: e.message };
     throw e;
   }
-  revalidatePath(`/apps/${String(fd.get("slug"))}`);
+  // 不对当前页 revalidatePath：详情页是动态渲染，刷新即得最新内容；同页重渲染曾使客户端 action 一直处于 pending（P1-7 偶发失败）。
   return { ok: "レビューを投稿しました。" };
 }
 

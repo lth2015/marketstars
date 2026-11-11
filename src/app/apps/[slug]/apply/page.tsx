@@ -3,16 +3,21 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, randomToken } from "@/lib/session";
 import { liveSubscription } from "@/lib/subscriptions";
-import { priceLabel } from "@/lib/text";
+import { localizedPrice } from "@/lib/text";
 import { addDays, formatJst } from "@/lib/time";
 import { ApplyForm } from "@/components/ApplyForm";
-import { t } from "@/lib/messages";
+import { getMessages } from "@/lib/messages";
 
-export const metadata = { title: "お申し込み内容の確認" };
+export async function generateMetadata() {
+  return { title: (await getMessages()).ui.apply.title };
+}
 
 export default async function ApplyPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ plan?: string; mode?: string }> }) {
   const { slug } = await params;
   const sp = await searchParams;
+  const t = await getMessages();
+  const A = t.ui.apply;
+  const priceLabel = (p: { priceType: string; priceJpy: number }) => localizedPrice(p, t.ui.price);
   const s = await getSession();
   if (!s) redirect(`/auth/login?returnTo=${encodeURIComponent(`/apps/${slug}/apply${sp.plan ? `?plan=${sp.plan}&mode=${sp.mode ?? "start"}` : ""}`)}`);
   const app = await prisma.app.findUnique({ where: { slug }, include: { provider: true, plans: { where: { current: true }, orderBy: { sortOrder: "asc" } } } });
@@ -25,21 +30,21 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
 
   const Shell = ({ children }: { children: React.ReactNode }) => (
     <div className="container" style={{ maxWidth: 860, paddingBottom: 64 }}>
-      <div className="breadcrumb"><Link href={`/apps/${slug}`}>{app.name}</Link> ／ お申し込み</div>
-      <h1 style={{ marginTop: 12 }}>お申し込み内容の確認</h1>
+      <div className="breadcrumb"><Link href={`/apps/${slug}`}>{app.name}</Link> ／ {A.crumb}</div>
+      <h1 style={{ marginTop: 12 }}>{A.title}</h1>
       {children}
     </div>
   );
 
-  if (!s.isOwner) return <Shell><div className="alert alert-warn">お申し込みは空間「{s.tenantName}」のオーナーのみ可能です。オーナーにお申し込みをご依頼ください。</div></Shell>;
+  if (!s.isOwner) return <Shell><div className="alert alert-warn">{A.ownerOnly(s.tenantName ?? "")}</div></Shell>;
   if (live && (live.status === "trialing" || (live.status === "active" && live.kind === "free"))) redirect(`/my/apps/${live.id}#change`);
-  if (live) return <Shell><div className="alert alert-info">この空間ではすでにお申し込み済み、または利用中です。<Link href={`/my/apps/${live.id}`}>契約内容を確認する</Link></div></Shell>;
-  if (!app.acceptingNew) return <Shell><div className="alert alert-warn">現在、新規のお申し込みを受け付けていません。</div></Shell>;
+  if (live) return <Shell><div className="alert alert-info">{A.already}<Link href={`/my/apps/${live.id}`}>{A.seeContract}</Link></div></Shell>;
+  if (!app.acceptingNew) return <Shell><div className="alert alert-warn">{A.notAccepting}</div></Shell>;
 
   if (!plan) {
     return (
       <Shell>
-        <p>申込先の空間：<strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply`)}`}>空間を切り替える</a></p>
+        <p>{A.targetSpace}：<strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply`)}`}>{A.switchSpace}</a></p>
         <div className="plan-grid">
           {app.plans.map((p) => {
             const canTrial = p.trialDays > 0 && p.priceType !== "free" && !trialUsed;
@@ -49,7 +54,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
                 <div className="price">{priceLabel(p)}</div>
                 <p className="small muted" style={{ whiteSpace: "pre-line", margin: 0 }}>{p.includes}</p>
                 {canTrial && <Link className="btn btn-primary btn-block" href={`?plan=${p.id}&mode=trial`}>{t.cta.trial(p.trialDays)}</Link>}
-                <Link className={`btn ${canTrial ? "btn-secondary" : "btn-primary"} btn-block`} href={`?plan=${p.id}&mode=start`}>{p.priceType === "free" ? t.cta.free : "このプランを申し込む"}</Link>
+                <Link className={`btn ${canTrial ? "btn-secondary" : "btn-primary"} btn-block`} href={`?plan=${p.id}&mode=start`}>{p.priceType === "free" ? t.cta.free : A.applyPlan}</Link>
               </div>
             );
           })}
@@ -60,7 +65,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
 
   const isTrial = mode === "trial" && plan.trialDays > 0 && plan.priceType !== "free";
   if (mode === "trial" && (!isTrial || trialUsed)) {
-    return <Shell><div className="alert alert-warn">この空間では無料体験をご利用いただけません（体験済み、または体験のないプラン）。<Link href={`/apps/${slug}/apply`}>プランを選び直す</Link></div></Shell>;
+    return <Shell><div className="alert alert-warn">{A.noTrial}<Link href={`/apps/${slug}/apply`}>{A.choosePlanAgain}</Link></div></Shell>;
   }
   const paid = !isTrial && plan.priceType !== "free";
   const now = new Date();
@@ -69,24 +74,24 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
     <Shell>
       <div className="panel stack">
         <dl className="dl">
-          <dt>申込先の空間</dt><dd><strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply?plan=${plan.id}&mode=${mode}`)}`}>切り替える</a></dd>
-          <dt>アプリ</dt><dd>{app.name}（{app.provider.name}）</dd>
-          <dt>プラン</dt><dd>{plan.name}</dd>
-          <dt>課金単位</dt><dd>1空間あたり／月</dd>
-          <dt>料金</dt><dd><strong>{isTrial ? `無料体験中は ¥0（体験後：${priceLabel(plan)}）` : priceLabel(plan)}</strong></dd>
-          {isTrial && <><dt>体験期間</dt><dd>{formatJst(now, true)} 〜 {formatJst(addDays(now, plan.trialDays), true)}（{plan.trialDays}日間）</dd></>}
-          <dt>お支払い方法</dt><dd>{paid ? "クレジットカード（即時開始・自動更新）または請求書払い（運営確認後に開始）" : "お支払いは発生しません"}</dd>
-          <dt>処理の流れ</dt>
+          <dt>{A.targetSpace}</dt><dd><strong>{s.tenantName}</strong>　<a className="small" href={`/auth/switch?returnTo=${encodeURIComponent(`/apps/${slug}/apply?plan=${plan.id}&mode=${mode}`)}`}>{A.switchShort}</a></dd>
+          <dt>{A.app}</dt><dd>{app.name}（{app.provider.name}）</dd>
+          <dt>{A.plan}</dt><dd>{plan.name}</dd>
+          <dt>{A.unit}</dt><dd>{A.unitValue}</dd>
+          <dt>{A.price}</dt><dd><strong>{isTrial ? A.trialPrice(priceLabel(plan)) : priceLabel(plan)}</strong></dd>
+          {isTrial && <><dt>{A.trialPeriod}</dt><dd>{formatJst(now, true)} 〜 {formatJst(addDays(now, plan.trialDays), true)}（{A.days(plan.trialDays)}）</dd></>}
+          <dt>{A.payment}</dt><dd>{paid ? A.paymentPaid : A.paymentNone}</dd>
+          <dt>{A.flow}</dt>
           <dd>
-            {isTrial && "お申し込み後すぐに利用を開始できます。"}
-            {!paid && !isTrial && "お申し込み後すぐに利用を開始できます。停止はいつでも可能です。"}
-            {paid && "カード払いは決済完了時点から利用開始となり、1か月ごとに自動更新されます（いつでも停止可）。請求書払いは「申込中」となり、運営が入金を確認した時点から1か月が利用期間です。お申し込みはお支払い完了ではありません。"}
+            {isTrial && A.flowTrial}
+            {!paid && !isTrial && A.flowFree}
+            {paid && A.flowPaid}
           </dd>
         </dl>
         {isTrial && <div className="alert alert-ok" style={{ margin: 0 }}>{t.noAutoCharge}</div>}
-        {plan.externalContractRequired && <div className="alert alert-warn" style={{ margin: 0 }}>このプランは提供会社との別途契約が必要です。</div>}
+        {plan.externalContractRequired && <div className="alert alert-warn" style={{ margin: 0 }}>{A.externalContract}</div>}
         <ApplyForm appId={app.id} planVersionId={plan.id} expectedPriceJpy={plan.priceJpy} mode={isTrial ? "trial" : "start"} idempotencyKey={randomToken(18)} slug={slug}
-          label={isTrial ? t.cta.trial(plan.trialDays) : paid ? "この内容で申し込む" : t.cta.free} paid={paid} />
+          label={isTrial ? t.cta.trial(plan.trialDays) : paid ? A.submitPaid : t.cta.free} paid={paid} labels={A.form} />
       </div>
     </Shell>
   );
