@@ -87,7 +87,9 @@ try {
     await see(page.getByRole("heading", { name: "Contact" }));
     assert.equal(await page.locator('#type option[value="billing"]').innerText(), "Billing and payment");
     await see(page.getByRole("button", { name: "Send" }));
-    await page.goto(`${BASE}/apps/no-such-app-xyz`);
+    // 不存在的应用必须返回真正的 404（不能是 200 的“软 404”，影响 SEO）
+    const res = await page.goto(`${BASE}/apps/no-such-app-xyz`);
+    assert.equal(res.status(), 404);
     await see(page.getByRole("heading", { name: "Page not found" }));
     await page.goto(`${BASE}/my/apps`);
   });

@@ -86,6 +86,7 @@ const ja = {
       title: "お問い合わせ", deletionHintPre: "アカウント削除の申請は ", deletionHintLink: "専用ページ", deletionHintPost: " から行えます（ログインが必要です）。確認事項の自動チェックと進捗確認ができます。",
       form: { type: "お問い合わせの種類", types: { usage: "アプリの使い方", contract: "契約・お申し込み", billing: "請求・お支払い", provider: "アプリ掲載のご相談", account_deletion: "アカウント削除の申請", other: "その他" }, app: "関連するアプリ（任意）", noApp: "選択しない", name: "お名前（必須）", email: "メールアドレス（必須）", company: "会社・店舗名（任意）", message: "お問い合わせ内容（必須）", submit: "送信する", sending: "送信中…", receivedPre: "お問い合わせを受け付けました。受付番号：", receivedPost: "担当者より順次ご連絡します。" },
     },
+    loading: "読み込み中",
     errors: { notFound: "ページが見つかりません", notFoundBody: "URL が変更されたか、公開が終了した可能性があります。", toApps: "アプリ一覧へ" },
     feedback: {
       tooMany: "操作が多すぎます。しばらくしてから再度お試しください。", tooManySends: (min: number) => `送信回数が多すぎます。${min} 分ほど待ってから再度お試しください。`,
@@ -227,6 +228,7 @@ const en: Messages = {
       title: "Contact", deletionHintPre: "You can request account deletion on the ", deletionHintLink: "dedicated page", deletionHintPost: " (sign-in required). It checks prerequisites automatically and shows progress.",
       form: { type: "Topic", types: { usage: "Using an app", contract: "Contracts and applications", billing: "Billing and payment", provider: "Listing an app", account_deletion: "Account deletion request", other: "Other" }, app: "Related app (optional)", noApp: "None", name: "Name (required)", email: "Email (required)", company: "Company or store (optional)", message: "Message (required)", submit: "Send", sending: "Sending…", receivedPre: "We received your inquiry. Reference number: ", receivedPost: "We will get back to you shortly." },
     },
+    loading: "Loading",
     errors: { notFound: "Page not found", notFoundBody: "The URL may have changed, or the page is no longer published.", toApps: "Browse apps" },
     feedback: {
       tooMany: "Too many attempts. Please wait a moment and try again.", tooManySends: (min: number) => `Too many submissions. Please wait about ${min} minutes and try again.`,
