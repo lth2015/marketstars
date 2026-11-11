@@ -47,7 +47,7 @@ export default async function AccountPage() {
         <div className="panel stack">
           <h3>アカウント削除</h3>
           <p className="small muted" style={{ margin: 0 }}>共通アカウントは複数のアプリで共有されるため、削除は共通 SSO が一括で処理します。現在はお問い合わせによる受付のみです。最後のオーナーである空間、未払いの請求、利用中の契約がある場合は、先に移管・解約が必要です。</p>
-          <Link className="btn btn-danger btn-sm" href="/contact?type=account_deletion">削除を申請する</Link>
+          <Link className="btn btn-danger btn-sm" href="/account/deletion">削除の申請と確認事項</Link>
         </div>
       </div>
     </div>
