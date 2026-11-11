@@ -500,3 +500,71 @@ model Asset {
   data        Bytes    @db.LongBlob
   createdAt   DateTime @default(now())
 }
+
+/// AgentPay：空间 owner 签发给 AI 代理的支付授权。API key 只保存哈希，只显示一次。
+model AgentMandate {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenantName       String
+  name             String
+  keyPrefix        String
+  keyHash          String    @unique
+  scopes           String // 逗号分隔：catalog,subscribe
+  allowedAppIds    Json? // null = 所有已发布应用
+  monthlyBudgetJpy Int
+  perTxLimitJpy    Int
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  transactions     AgentTransaction[]
+
+  @@index([tenantId])
+}
+
+/// 代理发起的每次购买请求（批准或拒绝都记录）。
+model AgentTransaction {
+  id             String       @id @default(cuid())
+  mandateId      String
+  mandate        AgentMandate @relation(fields: [mandateId], references: [id])
+  tenantId       String
+  appId          String?
+  subscriptionId String?
+  amountJpy      Int
+  status         String // approved | denied | failed
+  reason         String?      @db.Text
+  idempotencyKey String
+  createdAt      DateTime     @default(now())
+
+  @@unique([mandateId, idempotencyKey])
+  @@index([tenantId, createdAt])
+}
+
+/// 防篡改结算台帐：每条记录的 hash = sha256(prevHash + 规范化内容)。(kind, refId) 唯一，按定时任务顺序追加。
+model LedgerEntry {
+  seq        Int      @id @default(autoincrement())
+  kind       String // payment | refund | payout_paid
+  refId      String
+  amountJpy  Int
+  tenantId   String?
+  providerId String?
+  occurredAt DateTime
+  payload    Json
+  prevHash   String
+  hash       String   @unique
+  createdAt  DateTime @default(now())
+
+  @@unique([kind, refId])
+}
+
+/// 台帐锚点：某一时刻的链头哈希（用于对外公布 / 将来写入区块链）。
+model LedgerAnchor {
+  id        String   @id @default(cuid())
+  seq       Int
+  hash      String
+  entries   Int
+  target    String   @default("none") // none（未上链）| 将来：chain 名称
+  txRef     String?
+  createdAt DateTime @default(now())
+}

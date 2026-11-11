@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
 import { setUsageCap, addPaymentMethod, applyForApp, BizError, cancelPlanChange, cancelSubscription, changePlan, endTrialNow, payIntent, removePaymentMethod, setAutoRenew, undoCancel, withdrawApplication } from "@/lib/subscriptions";
 import { submitReview } from "@/lib/reviews";
+import { createMandate, revokeMandate } from "@/lib/agentpay";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
 
@@ -177,4 +178,30 @@ export async function usageCapAction(fd: FormData) {
     throw e;
   }
   redirect(`/my/apps/${id}?msg=${encodeURIComponent(raw === "" ? "利用上限を解除しました。" : `月の利用上限を ¥${Number(raw).toLocaleString()} に設定しました。`)}`);
+}
+
+export async function createMandateAction(_: FormState, fd: FormData): Promise<FormState> {
+  const s = await requireSession();
+  try {
+    const { key } = await createMandate(s, {
+      name: String(fd.get("name") ?? ""),
+      monthlyBudgetJpy: Math.floor(Number(fd.get("budget"))),
+      perTxLimitJpy: Math.floor(Number(fd.get("perTx"))),
+      allowedAppIds: fd.get("allApps") === "on" ? null : fd.getAll("apps").map(String),
+      days: Math.floor(Number(fd.get("days"))),
+      scopes: fd.getAll("scopes").map(String),
+    });
+    revalidatePath("/my/agents");
+    return { ok: key };
+  } catch (e) {
+    if (e instanceof BizError) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function revokeMandateAction(fd: FormData) {
+  const s = await requireSession();
+  await revokeMandate(s, String(fd.get("id")));
+  revalidatePath("/my/agents");
+  redirect(`/my/agents?msg=${encodeURIComponent("権限を取り消しました。このキーは直ちに使えなくなります。")}`);
 }

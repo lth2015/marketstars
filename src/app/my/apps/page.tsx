@@ -28,7 +28,7 @@ export default async function MyApps() {
       <div className="breadcrumb"><Link href="/">ホーム</Link> ／ マイアプリ</div>
       <div className="section-head" style={{ marginTop: 12 }}>
         <div><h1 style={{ marginBottom: 4 }}>マイアプリ</h1><div className="muted small">空間：<strong>{s.tenantName}</strong>（{s.isOwner ? "オーナー" : "メンバー"}） <Link href="/auth/switch?returnTo=/my/apps">切り替える</Link></div></div>
-        <Link href="/my/billing" className="btn btn-secondary btn-sm">請求・お支払い</Link>
+        <div className="row"><Link href="/my/agents" className="btn btn-ghost btn-sm">AIエージェント</Link><Link href="/my/billing" className="btn btn-secondary btn-sm">請求・お支払い</Link></div>
       </div>
       {subs.length === 0 && <div className="empty"><p>この空間で利用中のアプリはまだありません。</p><Link className="btn btn-primary" href="/apps">アプリを探す</Link></div>}
       {GROUPS.map((g) => {
