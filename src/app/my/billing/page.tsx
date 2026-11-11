@@ -47,7 +47,7 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
       {rows.length === 0 ? <div className="empty">請求履歴はまだありません。</div> : (
         <div className="table-wrap"><table className="table">
           <thead><tr><th>アプリ</th><th>対象期間</th><th>金額</th><th>状態</th><th>入金日</th><th>方法</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.id}><td>{r.subscription.app.name}</td><td>{formatJst(r.periodStart)} 〜 {formatJst(r.periodEnd)}</td><td>{yen(r.amountJpy)}</td><td>{LABEL[r.status] ?? r.status}</td><td>{formatJst(r.paidAt)}</td><td>{r.receiptRef?.startsWith("ch_") ? "カード" : "請求書"}</td></tr>)}</tbody>
+          <tbody>{rows.map((r) => <tr key={r.id}><td>{r.subscription.app.name}{r.kind === "usage" && <span className="tag" style={{ marginLeft: 6 }}>AI従量</span>}</td><td>{formatJst(r.periodStart)} 〜 {formatJst(r.periodEnd)}</td><td>{yen(r.amountJpy)}</td><td>{LABEL[r.status] ?? r.status}</td><td>{formatJst(r.paidAt)}</td><td>{r.receiptRef?.startsWith("ch_") ? "カード" : "請求書"}</td></tr>)}</tbody>
         </table></div>
       )}
     </div>

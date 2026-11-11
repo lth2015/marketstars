@@ -31,8 +31,12 @@ export function AppDraftEditor(props: {
       </div>
       <Field name="tagline" label="概要（一覧に2行で表示）" value={d.tagline} />
       <Field name="tags" label="検索タグ（スペース区切り）" value={d.tags} />
-      <Field name="iconUrl" label="アイコン URL" value={d.iconUrl} hint="https の画像 URL（64px 以上の正方形）" />
+      <div className="grid-2">
+        <Field name="iconUrl" label="アイコン URL" value={d.iconUrl} hint="https の画像 URL、または右でアップロード" />
+        <div className="form-row"><label htmlFor="f-iconFile">アイコンをアップロード（PNG/JPEG/WebP・2MB まで）</label><input id="f-iconFile" name="iconFile" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+      </div>
       <Field name="screenshots" label="スクリーンショット（1行に「URL|代替テキスト」）" area value={d.screenshots.map((s) => `${s.url}|${s.alt}`).join("\n")} />
+      <div className="form-row"><label htmlFor="f-screenshotFiles">スクリーンショットを追加アップロード（複数可・8枚まで）</label><input id="f-screenshotFiles" name="screenshotFiles" type="file" multiple accept="image/png,image/jpeg,image/webp" /></div>
       <Field name="problem" label="解決できること" area value={d.overview.problem} />
       <Field name="features" label="主な機能（1行に1つ）" area value={d.overview.features.join("\n")} />
       <div className="grid-2"><Field name="prerequisites" label="利用の前提" area value={d.overview.prerequisites} /><Field name="dataNeeds" label="利用するデータ" area value={d.overview.dataNeeds} /></div>
@@ -69,6 +73,7 @@ export function AppDraftEditor(props: {
                   <div className="form-row"><label>月額（円）</label><input name={`plan_${i}_priceJpy`} type="number" min={0} defaultValue={p.priceJpy || ""} /></div>
                   <div className="form-row"><label>無料体験日数</label><input name={`plan_${i}_trialDays`} type="number" min={0} max={90} defaultValue={p.trialDays} /></div>
                   <div className="form-row"><label>制限</label><input name={`plan_${i}_limits`} type="text" defaultValue={p.limits} /></div>
+                  <div className="form-row"><label>AI 従量単価（円 / 100万トークン、0 = なし）</label><input name={`plan_${i}_tokenPrice`} type="number" min={0} defaultValue={("tokenPrice" in p ? p.tokenPrice : 0) ?? 0} /></div>
                 </div>
                 <div className="form-row"><label>含まれる内容</label><textarea name={`plan_${i}_includes`} defaultValue={p.includes} /></div>
                 <div className="row">

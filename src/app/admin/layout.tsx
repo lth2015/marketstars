@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/requests">申込処理</Link>
         <Link href="/admin/subscriptions">契約管理</Link>
         <Link href="/admin/billing">請求記録</Link>
+        <Link href="/admin/payouts">提供会社への精算</Link>
         <Link href="/admin/reviews">レビュー管理</Link>
         <Link href="/admin/inquiries">お問い合わせ</Link>
         <Link href="/admin/content">コンテンツ</Link>

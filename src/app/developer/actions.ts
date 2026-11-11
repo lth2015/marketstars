@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { developerApp, getDeveloper } from "@/lib/developer";
 import { draftFromApp, draftFromForm, validateDraft } from "@/lib/publishing";
+import { applyUploads, UploadError } from "@/lib/assets";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const go = (path: string, kind: "msg" | "error", text: string): never => redirect(`${path}?${kind}=${encodeURIComponent(text)}`);
@@ -62,6 +63,12 @@ export async function devSaveDraftAction(fd: FormData) {
   if (app!.reviewStatus === "submitted") go(`/developer/apps/${id}`, "error", "審査中は編集できません。先に提出を取り下げてください。");
   // 开发者不能自行设定接入 client ID（由运营发放）
   const d = draftFromForm(fd, { providerId: app!.providerId, launchClientId: app!.launchClientId });
+  try {
+    await applyUploads(fd, d, { type: "provider", id: app!.providerId });
+  } catch (e) {
+    if (e instanceof UploadError) go(`/developer/apps/${id}`, "error", e.message);
+    throw e;
+  }
   await prisma.app.update({ where: { id }, data: { draft: d as unknown as Prisma.InputJsonValue, reviewStatus: app!.reviewStatus === "rejected" ? "rejected" : app!.reviewStatus } });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "app", objectId: id, action: "developer_save_draft" });
   go(`/developer/apps/${id}`, "msg", "下書きを保存しました。");
@@ -97,4 +104,13 @@ export async function devReplyAction(fd: FormData) {
   await prisma.review.update({ where: { id: r!.id }, data: { replyBody: body || null, repliedAt: body ? new Date() : null } });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "review", objectId: r!.id, action: "developer_reply" });
   go(`/developer/apps/${app!.id}`, "msg", "返信を保存しました。");
+}
+
+export async function payoutAccountAction(fd: FormData) {
+  const s = await owner();
+  const p = await getDeveloper(s);
+  if (!p) redirect("/developer");
+  await prisma.provider.update({ where: { id: p.id }, data: { payoutAccount: str(fd, "payoutAccount").slice(0, 500) || null } });
+  await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "provider", objectId: p.id, action: "set_payout_account" });
+  go("/developer/earnings", "msg", "振込先を保存しました。");
 }

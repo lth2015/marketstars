@@ -20,6 +20,10 @@ model Provider {
   ownerTenantId String?  @unique
   contactEmail  String?
   developerTermsVersion String?
+  /// 供应商分成比例（基点，7000 = 70% 归供应商）
+  revenueShareBps Int     @default(7000)
+  payoutAccount   String? @db.Text
+  payouts         PayoutStatement[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   apps       App[]
@@ -129,6 +133,8 @@ model PlanVersion {
   includes                 String   @default("") @db.Text
   limits                   String   @default("") @db.Text
   externalContractRequired Boolean  @default(false)
+  /// 模型 Token 按量单价（日元 / 100 万 Token，0 = 不按量计费）
+  tokenPriceJpyPerMTok     Int      @default(0)
   sortOrder                Int      @default(0)
   createdAt                DateTime @default(now())
   subscriptions            Subscription[]
@@ -171,6 +177,8 @@ model Subscription {
   scheduledPlanVersionId String?
   scheduledPlan      PlanVersion? @relation("ScheduledPlan", fields: [scheduledPlanVersionId], references: [id])
   lastChargeError    String?   @db.Text
+  /// 租户设置的每月按量费用上限（日元），null = 不限
+  usageCapJpy        Int?
   createdBy          String
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -178,6 +186,7 @@ model Subscription {
   periods            SubscriptionPeriod[]
   billing            BillingRecord[]
   paymentIntents     PaymentIntent[]
+  usage              UsageEvent[]
 
   @@index([tenantId, status])
   @@index([appId, status])
@@ -224,6 +233,7 @@ model SubscriptionPeriod {
 
 model BillingRecord {
   id             String       @id @default(cuid())
+  kind           String       @default("subscription") // subscription | usage
   tenantId       String
   subscriptionId String
   subscription   Subscription @relation(fields: [subscriptionId], references: [id])
@@ -240,7 +250,7 @@ model BillingRecord {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  @@unique([subscriptionId, periodStart])
+  @@unique([subscriptionId, kind, periodStart])
   @@unique([receiptRef])
   @@index([tenantId])
 }
@@ -434,4 +444,59 @@ model Review {
 
   @@unique([appId, userId])
   @@index([appId, status])
+}
+
+/// 统一模型网关的调用记录（Token 按量计费依据）。(appId, requestId) 唯一，防止重复计费。
+model UsageEvent {
+  id             String       @id @default(cuid())
+  appId          String
+  requestId      String
+  tenantId       String
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  planVersionId  String
+  model          String
+  inputTokens    Int
+  outputTokens   Int
+  /// 单价快照（日元 / 100 万 Token）
+  unitPriceJpyPerMTok Int
+  /// 费用（千分之一日元）
+  costMilliJpy   Int
+  createdAt      DateTime     @default(now())
+
+  @@unique([appId, requestId])
+  @@index([subscriptionId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+/// 供应商月度结算单（自动分账）。确定后不可改；之后发生的退款计入下月。
+model PayoutStatement {
+  id            String   @id @default(cuid())
+  providerId    String
+  provider      Provider @relation(fields: [providerId], references: [id])
+  month         String // YYYY-MM（日本时间）
+  grossJpy      Int
+  refundJpy     Int
+  platformFeeJpy Int
+  payoutJpy     Int
+  shareBps      Int
+  lines         Json
+  status        String   @default("confirmed") // confirmed | paid
+  paidAt        DateTime?
+  paidReference String?
+  generatedAt   DateTime @default(now())
+
+  @@unique([providerId, month])
+}
+
+/// 上传的图片（演示环境存数据库；生产建议 Cloud Storage）。
+model Asset {
+  id          String   @id @default(cuid())
+  ownerType   String // provider | operator
+  ownerId     String
+  contentType String
+  size        Int
+  sha256      String
+  data        Bytes    @db.LongBlob
+  createdAt   DateTime @default(now())
 }

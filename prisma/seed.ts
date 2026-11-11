@@ -25,7 +25,7 @@ const integrations = [
   ["starpay", "StarPay連携"],
 ];
 
-type PlanSeed = { key: string; name: string; type: "free" | "monthly" | "contact"; price?: number; trial?: number; includes: string; limits?: string; ext?: boolean };
+type PlanSeed = { key: string; name: string; type: "free" | "monthly" | "contact"; price?: number; trial?: number; includes: string; limits?: string; ext?: boolean; token?: number };
 type AppSeed = {
   slug: string; name: string; tagline: string; provider: string; cats: string[]; inds: string[]; integ: string[]; tags: string;
   weight: number; publishedDaysAgo: number; plans: PlanSeed[]; integrated?: boolean; color: string; glyph: string;
@@ -33,7 +33,7 @@ type AppSeed = {
 
 const apps: AppSeed[] = [
   { slug: "pop-writer", name: "AI POPメーカー", tagline: "商品名と特徴を入れるだけで、店頭POPやSNS投稿の文案を数パターン作成します。", provider: "MarketStars Labs", cats: ["marketing"], inds: ["retail", "restaurant", "general"], integ: ["standalone"], tags: "POP SNS 文章 作成 キャッチコピー", weight: 100, publishedDaysAgo: 12, integrated: true, color: "#185ABD", glyph: "P",
-    plans: [{ key: "free", name: "フリー", type: "free", includes: "月30回まで生成\n2パターン同時生成", limits: "商用利用可・履歴保存なし" }, { key: "standard", name: "スタンダード", type: "monthly", price: 1980, trial: 14, includes: "生成回数 無制限\n5パターン同時生成\nトーン指定", limits: "1空間あたりの料金です" }] },
+    plans: [{ key: "free", name: "フリー", type: "free", includes: "月30回まで生成\n2パターン同時生成", limits: "商用利用可・履歴保存なし" }, { key: "standard", name: "スタンダード", type: "monthly", price: 1980, trial: 14, includes: "生成回数 無制限\n5パターン同時生成\nトーン指定\nAIモデル提案（従量）", limits: "1空間あたりの料金です", token: 3000 }] },
   { slug: "review-reply", name: "クチコミ返信アシスタント", tagline: "Googleマップなどのクチコミに、お店らしい丁寧な返信案をAIが提案します。", provider: "Hikari Works", cats: ["crm", "marketing"], inds: ["restaurant", "beauty"], integ: ["standalone"], tags: "口コミ レビュー 返信", weight: 90, publishedDaysAgo: 40, color: "#0F7B6C", glyph: "口",
     plans: [{ key: "basic", name: "ベーシック", type: "monthly", price: 2980, trial: 30, includes: "返信案 月200件\n店舗トーン学習" }] },
   { slug: "sales-insight", name: "売上インサイトAI", tagline: "日々の売上データから、曜日・時間帯ごとの傾向と打ち手を毎朝レポートします。", provider: "Ginza Data", cats: ["analytics"], inds: ["retail", "restaurant"], integ: ["starpay"], tags: "売上 分析 レポート 予測", weight: 80, publishedDaysAgo: 70, color: "#7A4CC2", glyph: "売",
@@ -69,7 +69,7 @@ function shot(color: string, title: string, n: number) {
 
 async function main() {
   await prisma.$transaction([
-    prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
+    prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
     prisma.applicationRequest.deleteMany(), prisma.subscription.deleteMany(), prisma.trialUsage.deleteMany(), prisma.inquiry.deleteMany(),
     prisma.contentEntry.deleteMany(), prisma.appRelease.deleteMany(), prisma.planVersion.deleteMany(), prisma.app.deleteMany(),
     prisma.provider.deleteMany(), prisma.category.deleteMany(), prisma.industry.deleteMany(), prisma.integrationTag.deleteMany(),
@@ -112,7 +112,7 @@ async function main() {
       },
     });
     for (const [i, p] of a.plans.entries()) {
-      await prisma.planVersion.create({ data: { appId: app.id, planKey: p.key, name: p.name, priceType: p.type, priceJpy: p.price ?? 0, trialDays: p.trial ?? 0, includes: p.includes, limits: p.limits ?? "", externalContractRequired: !!p.ext, sortOrder: i } });
+      await prisma.planVersion.create({ data: { appId: app.id, planKey: p.key, name: p.name, priceType: p.type, priceJpy: p.price ?? 0, trialDays: p.trial ?? 0, includes: p.includes, limits: p.limits ?? "", externalContractRequired: !!p.ext, tokenPriceJpyPerMTok: p.token ?? 0, sortOrder: i } });
     }
     await prisma.appRelease.create({ data: { appId: app.id, number: 1, snapshot: { name: a.name, tagline: a.tagline }, publishedBy: "seed" } });
   }

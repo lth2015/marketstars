@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MarketStars API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     MarketStars 拟建接口（不是 SSO 已有路径）。浏览器端接口使用同源 BFF 的 HttpOnly 会话 Cookie；
     写入需 X-CSRF-Token（由 GET /api/v1/me 返回）与 Idempotency-Key。接入应用的服务端接口使用
@@ -179,6 +179,51 @@ paths:
         "200": { description: 已接收 }
         "401": { description: 签名无效 }
         "409": { description: 订阅状态已变化，无法结算 }
+  /api/v1/models/messages:
+    post:
+      summary: 统一模型网关（接入应用代表租户调用模型，按 Token 计费）
+      description: |
+        校验租户权益与月度上限后调用模型（claude-opus-5-5 / claude-sonnet-5-5 / claude-haiku-5-5），
+        按套餐单价（日元/100 万 Token）记录用量。request_id 幂等：重复请求返回 409 且不重复计费。
+      security: [{ appClient: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, request_id, messages]
+              properties:
+                tenant_id: { type: string }
+                request_id: { type: string, pattern: "^[A-Za-z0-9_.:-]{8,100}$" }
+                model: { type: string, enum: [claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5] }
+                system: { type: string }
+                messages: { type: array, items: { type: object, required: [role, content], properties: { role: { type: string, enum: [user, assistant] }, content: { type: string } } } }
+                max_tokens: { type: integer, minimum: 16, maximum: 4096 }
+                effort: { type: string, enum: [low, medium, high] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+                  model: { type: string }
+                  stop_reason: { type: [string, "null"] }
+                  usage: { type: object, properties: { input_tokens: { type: integer }, output_tokens: { type: integer }, unit_price_jpy_per_mtok: { type: integer }, cost_jpy: { type: number } } }
+        "401": { description: invalid_client }
+        "403": { description: not_entitled }
+        "409": { description: duplicate_request }
+        "413": { description: 输入过大 }
+        "429": { description: usage_cap_reached }
+        "502": { description: model_error }
+  /api/assets/{id}:
+    get:
+      summary: 上传的图片（PNG/JPEG/WebP）
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: 图片 }, "404": { description: Not found } }
   /api/healthz:
     get: { summary: Liveness, responses: { "200": { description: OK } } }
   /api/readyz:

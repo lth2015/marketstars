@@ -6,7 +6,8 @@ import { isEntitled } from "@/lib/subscriptions";
 import { formatJst } from "@/lib/time";
 import { yen } from "@/lib/text";
 import { StatusBadge } from "@/components/StatusBadge";
-import { autoRenewAction, planChangeAction, subscriptionAction } from "@/app/actions";
+import { autoRenewAction, planChangeAction, subscriptionAction, usageCapAction } from "@/app/actions";
+import { jstMonth, monthUsage } from "@/lib/usage";
 import { priceLabel } from "@/lib/text";
 
 export const metadata = { title: "契約内容" };
@@ -20,6 +21,9 @@ export default async function ContractPage({ params, searchParams }: { params: P
   const sub = await prisma.subscription.findFirst({ where: { id, tenantId: s.tenantId ?? "__none__" }, include: { app: { include: { plans: { where: { current: true }, orderBy: { sortOrder: "asc" } } } }, request: true, periods: { orderBy: { startsAt: "desc" } }, scheduledPlan: true, paymentMethod: true, paymentIntents: { where: { status: { in: ["requires_payment", "failed"] }, purpose: { in: ["activate", "convert_trial", "upgrade"] } }, orderBy: { createdAt: "desc" }, take: 1 } } });
   const cards = s.isOwner ? await prisma.paymentMethod.findMany({ where: { tenantId: s.tenantId!, active: true } }) : [];
   if (!sub) notFound();
+  const usageMonth = jstMonth();
+  const usage = await monthUsage(sub.id, usageMonth);
+  const unitPrice = (await prisma.planVersion.findUniqueOrThrow({ where: { id: sub.planVersionId } })).tokenPriceJpyPerMTok;
   const ok = isEntitled(sub);
   const Action = ({ op, label, confirm, variant = "btn-secondary" }: { op: string; label: string; confirm: string; variant?: string }) => (
     <form action={subscriptionAction} className="panel stack" style={{ background: "#FBFCFD" }}>
@@ -75,6 +79,29 @@ export default async function ContractPage({ params, searchParams }: { params: P
         {["expired", "canceled", "rejected", "withdrawn"].includes(sub.status) && <div className="panel"><p className="small" style={{ marginTop: 0 }}>この契約は終了しています。</p><Link className="btn btn-primary btn-sm" href={`/apps/${sub.app.slug}`}>アプリ詳細へ</Link></div>}
       </div>
 
+
+      {(unitPrice > 0 || usage.requests > 0) && (
+        <section style={{ marginTop: 32 }}>
+          <h2>AI モデル利用量（{usageMonth.key}）</h2>
+          <div className="panel stack">
+            <dl className="dl">
+              <dt>リクエスト数</dt><dd>{usage.requests.toLocaleString()}</dd>
+              <dt>トークン</dt><dd>入力 {usage.inputTokens.toLocaleString()} ／ 出力 {usage.outputTokens.toLocaleString()}</dd>
+              <dt>単価</dt><dd>{unitPrice > 0 ? `¥${unitPrice.toLocaleString()} / 100万トークン` : "従量課金なし"}</dd>
+              <dt>今月の従量料金（見込み）</dt><dd><strong>¥{usage.costJpy.toLocaleString()}</strong>（税込・月末締めで翌月に請求）</dd>
+              <dt>月の利用上限</dt><dd>{sub.usageCapJpy === null ? "なし" : `¥${sub.usageCapJpy.toLocaleString()}（到達するとAI機能が停止します）`}</dd>
+            </dl>
+            {s.isOwner && unitPrice > 0 && (
+              <form action={usageCapAction} className="row">
+                <input type="hidden" name="id" value={sub.id} />
+                <label className="small" htmlFor="cap">上限額（円・空欄で解除）</label>
+                <input id="cap" name="cap" type="number" min={0} defaultValue={sub.usageCapJpy ?? ""} style={{ width: 120, height: 34 }} />
+                <button className="btn btn-secondary btn-sm">保存</button>
+              </form>
+            )}
+          </div>
+        </section>
+      )}
 
       {s.isOwner && ["active", "trialing"].includes(sub.status) && (() => {
         const others = sub.app.plans.filter((p) => (sub.status === "trialing" || p.id !== sub.planVersionId) && p.priceType !== "contact" && (sub.kind === "paid" || p.priceType === "monthly"));

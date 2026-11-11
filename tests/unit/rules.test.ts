@@ -61,3 +61,19 @@ describe("权益判断", () => {
   it("期末退订期内可用", () => expect(isEntitled({ ...base, status: "cancel_scheduled", cancelAt: future }, now)).toBe(true));
   it("暂停无权益", () => expect(isEntitled({ ...base, status: "suspended", currentPeriodEnd: future }, now)).toBe(false));
 });
+
+import { costMilli, jstMonth, prevMonth } from "@/lib/usage";
+
+describe("按量计费与月份（JST）", () => {
+  it("千分之一日元向上取整", () => {
+    expect(costMilli(1000, 3000)).toBe(3000); // 1000 tokens × ¥3000/MTok = ¥3
+    expect(costMilli(1, 3000)).toBe(3);
+    expect(costMilli(1, 1)).toBe(1);
+  });
+  it("JST 月界：UTC 10/31 15:00 属于 11 月", () => {
+    expect(jstMonth(undefined, new Date("2026-10-31T15:00:00Z")).key).toBe("2026-11");
+    expect(jstMonth(undefined, new Date("2026-10-31T14:59:59Z")).key).toBe("2026-10");
+    expect(jstMonth("2026-11").start.toISOString()).toBe("2026-10-31T15:00:00.000Z");
+  });
+  it("上个月（跨年）", () => expect(prevMonth(new Date("2027-01-05T00:00:00Z")).key).toBe("2026-12"));
+});
