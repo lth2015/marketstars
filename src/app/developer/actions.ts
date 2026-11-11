@@ -7,6 +7,8 @@ import { audit } from "@/lib/audit";
 import { developerApp, getDeveloper } from "@/lib/developer";
 import { draftFromApp, draftFromForm, validateDraft } from "@/lib/publishing";
 import { applyUploads, UploadError } from "@/lib/assets";
+import { deliverOne, validateWebhookUrl } from "@/lib/webhooks";
+import { WEBHOOK_EVENT_TYPES } from "@/lib/events";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const go = (path: string, kind: "msg" | "error", text: string): never => redirect(`${path}?${kind}=${encodeURIComponent(text)}`);
@@ -113,4 +115,44 @@ export async function payoutAccountAction(fd: FormData) {
   await prisma.provider.update({ where: { id: p.id }, data: { payoutAccount: str(fd, "payoutAccount").slice(0, 500) || null } });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "provider", objectId: p.id, action: "set_payout_account" });
   go("/developer/earnings", "msg", "振込先を保存しました。");
+}
+
+export async function webhookAction(fd: FormData) {
+  const s = await owner();
+  const appId = str(fd, "appId");
+  const app = await developerApp(s, appId);
+  if (!app) go("/developer", "error", "アプリが見つかりません。");
+  const back = `/developer/apps/${appId}#webhooks`;
+  const op = str(fd, "op");
+  if (op === "create") {
+    const url = str(fd, "url");
+    const err = validateWebhookUrl(url);
+    if (err) go(`/developer/apps/${appId}`, "error", err);
+    const types = fd.getAll("eventTypes").map(String).filter((t) => t === "*" || WEBHOOK_EVENT_TYPES.includes(t));
+    const e = await prisma.webhookEndpoint.create({ data: { appId, url, eventTypes: (types.length ? types : ["*"]).join(","), createdBy: s.userId } });
+    await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "webhook_endpoint", objectId: e.id, action: "create", data: { url } });
+    go(`/developer/apps/${appId}`, "msg", "Webhook を登録しました。署名シークレットで受信側の検証を設定してください。");
+  }
+  const e = await prisma.webhookEndpoint.findFirst({ where: { id: str(fd, "endpointId"), appId } });
+  if (!e) go(`/developer/apps/${appId}`, "error", "Webhook が見つかりません。");
+  if (op === "toggle") {
+    await prisma.webhookEndpoint.update({ where: { id: e!.id }, data: { enabled: !e!.enabled } });
+  } else if (op === "delete") {
+    await prisma.$transaction([prisma.webhookDelivery.deleteMany({ where: { endpointId: e!.id } }), prisma.webhookEndpoint.delete({ where: { id: e!.id } })]);
+  } else if (op === "test") {
+    const ev = await prisma.domainEvent.create({ data: { type: "webhook.ping", appId, payload: { appSlug: app!.slug, appName: app!.name }, processedAt: new Date() } });
+    const d = await prisma.webhookDelivery.create({ data: { endpointId: e!.id, eventId: ev.id } });
+    const r = await deliverOne(d.id);
+    await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "webhook_endpoint", objectId: e!.id, action: "test", toState: r });
+    go(`/developer/apps/${appId}`, r === "succeeded" ? "msg" : "error", r === "succeeded" ? "テスト送信に成功しました（2xx）。" : "テスト送信に失敗しました。配信履歴でエラーを確認してください。");
+  } else if (op === "redeliver") {
+    const d = await prisma.webhookDelivery.findFirst({ where: { id: str(fd, "deliveryId"), endpointId: e!.id } });
+    if (d) {
+      await prisma.webhookDelivery.update({ where: { id: d.id }, data: { status: "pending", attempts: 0, nextAttemptAt: new Date() } });
+      const r = await deliverOne(d.id);
+      go(`/developer/apps/${appId}`, r === "succeeded" ? "msg" : "error", r === "succeeded" ? "再送に成功しました。" : "再送に失敗しました。");
+    }
+  }
+  await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "webhook_endpoint", objectId: e!.id, action: op });
+  redirect(back);
 }

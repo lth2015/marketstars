@@ -10,7 +10,7 @@ const MS = "http://127.0.0.1:3100";
 const SSO = "http://127.0.0.1:4464";
 const DB = process.env.MYSQL_DB ?? "marketstars";
 const U1 = "a1".repeat(16), U2 = "a2".repeat(16), T_SUZUKI = "b1".repeat(16), T_EKIMAE = "b2".repeat(16), T_OPS = "c1".repeat(16);
-const sql = (q) => execSync(`mysql ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
+const sql = (q) => execSync(`mysql --default-character-set=utf8mb4 ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
 
 const procs = [];
 // detached + 进程组终止，确保子进程（next-server）一起退出

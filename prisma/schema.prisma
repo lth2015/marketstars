@@ -568,3 +568,107 @@ model LedgerAnchor {
   txRef     String?
   createdAt DateTime @default(now())
 }
+
+/// 领域事件 outbox：业务事务内写入，由定时任务分发为通知、邮件和提供商 Webhook。
+model DomainEvent {
+  id             String    @id @default(cuid())
+  type           String
+  tenantId       String?
+  appId          String?
+  subscriptionId String?
+  payload        Json
+  dedupeKey      String?   @unique
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  deliveries     WebhookDelivery[]
+
+  @@index([processedAt, createdAt])
+  @@index([appId, createdAt])
+}
+
+/// 站内通知（按空间；已读状态按用户记录在 NotificationRead）。
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String
+  eventId   String?
+  kind      String
+  title     String
+  body      String   @db.Text
+  link      String?
+  ownerOnly Boolean  @default(false)
+  createdAt DateTime @default(now())
+  reads     NotificationRead[]
+
+  @@unique([tenantId, eventId])
+  @@index([tenantId, createdAt])
+}
+
+model NotificationRead {
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id])
+  userId         String
+  readAt         DateTime     @default(now())
+
+  @@id([notificationId, userId])
+}
+
+/// 空间的联系邮箱（owner 登录时从 SSO 的 email 声明记录）。
+model TenantContact {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  email     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+}
+
+model EmailOutbox {
+  id        String    @id @default(cuid())
+  to        String
+  subject   String
+  body      String    @db.Text
+  eventId   String?
+  status    String    @default("pending") // pending | sent | failed
+  attempts  Int       @default(0)
+  lastError String?   @db.Text
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([eventId, to])
+  @@index([status, createdAt])
+}
+
+/// 提供商为应用配置的 Webhook。签名密钥由 SESSION_SECRET 与端点 ID 派生，不入库。
+model WebhookEndpoint {
+  id         String   @id @default(cuid())
+  appId      String
+  url        String   @db.VarChar(1000)
+  enabled    Boolean  @default(true)
+  eventTypes String // 逗号分隔，* = 全部
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deliveries WebhookDelivery[]
+
+  @@index([appId])
+}
+
+model WebhookDelivery {
+  id            String          @id @default(cuid())
+  endpointId    String
+  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id])
+  eventId       String
+  event         DomainEvent     @relation(fields: [eventId], references: [id])
+  status        String          @default("pending") // pending | succeeded | failed | dead
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime        @default(now())
+  lastStatus    Int?
+  lastError     String?         @db.Text
+  succeededAt   DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@unique([endpointId, eventId])
+  @@index([status, nextAttemptAt])
+}

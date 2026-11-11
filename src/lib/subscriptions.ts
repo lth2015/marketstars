@@ -5,6 +5,7 @@ import { addDays, addOneMonthJst } from "./time";
 import { config } from "./config";
 import type { SessionUser } from "./session";
 import { paymentProvider, type CardInput } from "./payments/provider";
+import { ACTION_EVENTS, emitSubscriptionEvent } from "./events";
 
 export const LIVE_STATUSES = ["pending", "trialing", "active", "cancel_scheduled", "suspended"];
 export const STATUS_LABEL: Record<string, string> = {
@@ -140,6 +141,8 @@ export async function applyForApp(s: SessionUser, input: ApplyInput) {
         await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind, startsAt: now, endsAt: sub.currentPeriodEnd } });
       }
       await audit(tx, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "subscription", objectId: sub.id, action: `apply_${kind}`, toState: status, data: { planVersionId: plan.id, price: plan.priceJpy, payment: input.payment ?? "invoice" } });
+      const evType = kind === "trial" ? "subscription.trial_started" : kind === "free" ? "subscription.activated" : input.payment === "card" ? null : "application.submitted";
+      if (evType) await emitSubscriptionEvent(tx, evType, sub.id);
       return sub;
     }).then(withIntent);
   } catch (e) {
@@ -175,6 +178,8 @@ async function transition(
     if (r.count === 0) throw new BizError("state", "状態が変更されています。画面を更新してください。");
     const after = await tx.subscription.findUniqueOrThrow({ where: { id: sub.id } });
     await audit(tx, { actorId: actor.id, actorType: actor.type, tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action, fromState: sub.status, toState: after.status, reason });
+    const ev = ACTION_EVENTS[action];
+    if (ev) await emitSubscriptionEvent(tx, typeof ev === "function" ? ev(after.status) : ev, sub.id, { reason: reason ?? null });
     return after;
   });
 }
@@ -253,6 +258,9 @@ async function grantPaidPeriod(
   if (sub.status === "pending") await tx.applicationRequest.updateMany({ where: { subscriptionId: sub.id }, data: { decidedBy: g.actorId, decidedAt: new Date() } });
   const after = await tx.subscription.findUniqueOrThrow({ where: { id: sub.id } });
   await audit(tx, { actorId: g.actorId, actorType: g.actorType, tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action: g.action, fromState: sub.status, toState: after.status, data: { receiptRef: g.receiptRef, amountJpy: g.amountJpy, planVersionId: g.planVersionId, periodStart: g.start.toISOString(), periodEnd: end.toISOString() } });
+  const lifecycle = /renew$/.test(g.action) ? "subscription.renewed" : /upgrade$/.test(g.action) ? "subscription.plan_changed" : "subscription.activated";
+  await emitSubscriptionEvent(tx, lifecycle, sub.id);
+  await emitSubscriptionEvent(tx, "payment.succeeded", sub.id, { amountJpy: g.amountJpy }, `payment:${g.receiptRef}`);
   return after;
 }
 
@@ -340,6 +348,7 @@ export async function changePlan(s: SessionUser, id: string, planVersionId: stri
     const r = await prisma.subscription.updateMany({ where: { id, status: "active", kind: "paid" }, data: { scheduledPlanVersionId: plan.id } });
     if (!r.count) throw new BizError("state", "状態が変更されています。");
     await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: sub.tenantId, objectType: "subscription", objectId: id, action: "schedule_plan_change", data: { to: plan.id, price: plan.priceJpy } });
+    await emitSubscriptionEvent(prisma, "subscription.plan_change_scheduled", id);
     return { scheduled: true as const };
   }
   if (plan.priceType !== "monthly") throw new BizError("state", "このプランには変更できません。");
@@ -463,6 +472,7 @@ export async function applyScheduledDowngrades(now = new Date()) {
       if (!r.count) return;
       await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind: "free", startsAt: sub.currentPeriodEnd! } });
       await audit(tx, { actorId: "system", actorType: "system", tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action: "downgrade_to_free", fromState: "active", toState: "active" });
+      await emitSubscriptionEvent(tx, "subscription.plan_changed", sub.id);
       n++;
     });
   }
@@ -501,6 +511,7 @@ export async function renewDue(now = new Date()) {
       await prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed", failureReason: res.message } });
       await prisma.subscription.update({ where: { id: sub.id }, data: { lastChargeError: `${res.message}（${intent.attempts + 1}/3 回目）` } });
       await audit(prisma, { actorId: "system", actorType: "system", tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action: "renew_charge_failed", reason: res.code });
+      await emitSubscriptionEvent(prisma, "payment.failed", sub.id, { reason: res.message, amountJpy: intent.amountJpy }, `payment_failed:${intent.id}:${intent.attempts + 1}`);
       out.failed++;
     }
   }

@@ -209,3 +209,8 @@ table.table { width: 100%; border-collapse: collapse; background: #fff; font-siz
 @media (max-width: 860px) { .btn.nav-toggle { display: inline-flex; } .space-chip { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; } }
 @media (max-width: 520px) { .site-header .bar { gap: 10px; } .logo { font-size: 18px; } .space-chip { max-width: 30vw; padding: 4px 8px; } .user-menu { gap: 6px; } .user-menu .btn-sm { padding: 0 8px; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bell { position: relative; text-decoration: none; font-size: 18px; line-height: 1; padding: 6px; }
+.bell-count { position: absolute; top: -2px; right: -6px; background: var(--danger); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 5px; line-height: 1.4; }
+.notice { display: block; text-decoration: none; color: var(--text); }
+.notice.unread { border-left: 4px solid var(--primary); }
+@media (max-width: 1199px) { .main-nav a { padding: 8px 8px; } .user-menu .hide-sm { display: none; } .site-header .bar { gap: 16px; } }

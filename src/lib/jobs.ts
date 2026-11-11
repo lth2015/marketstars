@@ -4,6 +4,8 @@ import { computeRanking } from "./catalog";
 import { billUsage } from "./usage";
 import { autoPayouts } from "./payouts";
 import { anchorLedger, ingestLedger } from "./ledger";
+import { emitReminders, processEvents, sendPendingEmails } from "./notify";
+import { deliverDueWebhooks } from "./webhooks";
 
 /** 以 JobLock 行实现跨副本互斥（5 分钟租约），任务本身也是幂等的。 */
 async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | "locked"> {
@@ -19,6 +21,15 @@ async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | "loc
     await prisma.jobLock.update({ where: { name }, data: { lockedAt: new Date(0), lastResult: `error: ${String(e)}` } });
     throw e;
   }
+}
+
+/** 事件分发（可每分钟执行）：提醒 → 事件扇出 → Webhook 投递 → 邮件发送。均幂等。 */
+export async function runEventJobs() {
+  const reminders = await withLock("reminders", () => emitReminders());
+  const events = await withLock("events", () => processEvents());
+  const webhooks = await withLock("webhooks", () => deliverDueWebhooks());
+  const emails = await withLock("emails", () => sendPendingEmails());
+  return { reminders, events, webhooks, emails };
 }
 
 export async function runJobs() {
@@ -37,5 +48,6 @@ export async function runJobs() {
   await prisma.authState.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 3600000) } } });
   await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.launchTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86400000) } } });
-  return { downgraded, renewed, expired, usage, payouts, ledger, ranking };
+  const dispatch = await runEventJobs();
+  return { downgraded, renewed, expired, usage, payouts, ledger, ranking, dispatch };
 }

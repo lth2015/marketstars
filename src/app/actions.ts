@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { setUsageCap, addPaymentMethod, applyForApp, BizError, cancelPlanChange, cancelSubscription, changePlan, endTrialNow, payIntent, removePaymentMethod, setAutoRenew, undoCancel, withdrawApplication } from "@/lib/subscriptions";
 import { submitReview } from "@/lib/reviews";
 import { createMandate, revokeMandate } from "@/lib/agentpay";
+import { visibleWhere } from "@/lib/notifications";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
 
@@ -204,4 +205,13 @@ export async function revokeMandateAction(fd: FormData) {
   await revokeMandate(s, String(fd.get("id")));
   revalidatePath("/my/agents");
   redirect(`/my/agents?msg=${encodeURIComponent("権限を取り消しました。このキーは直ちに使えなくなります。")}`);
+}
+
+export async function markNotificationsReadAction() {
+  const s = await requireSession();
+  const rows = await prisma.notification.findMany({ where: { ...visibleWhere(s), reads: { none: { userId: s.userId } } }, select: { id: true } });
+  if (rows.length) await prisma.notificationRead.createMany({ data: rows.map((r) => ({ notificationId: r.id, userId: s.userId })), skipDuplicates: true });
+  // 页头（根布局）的未读数也需要刷新
+  revalidatePath("/", "layout");
+  redirect("/my/notifications");
 }
