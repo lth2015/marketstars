@@ -1,0 +1,52 @@
+# Public routing. Everything is public EXCEPT /api/internal/*.
+# /api/internal is (1) denied by Cloud Armor (priority 100, primary control),
+# (2) never forwarded to the backend by this route (redirected to "/"), and
+# (3) protected in-app by `Authorization: Bearer $JOB_TOKEN`.
+# Only the in-cluster CronJob reaches it, via the ClusterIP Service.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: marketstars
+  labels:
+    marketstars.io/phase: prereq
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: marketstars
+      sectionName: https
+  hostnames:
+    - marketstars.example.com # patched per overlay
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /api/internal }
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path: { type: ReplaceFullPath, replaceFullPath: / }
+            statusCode: 302
+    - matches:
+        - path: { type: PathPrefix, value: / }
+      backendRefs:
+        - name: marketstars
+          port: 80
+---
+# HTTP -> HTTPS redirect.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: marketstars-http-redirect
+  labels:
+    marketstars.io/phase: prereq
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: marketstars
+      sectionName: http
+  hostnames:
+    - marketstars.example.com # patched per overlay
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

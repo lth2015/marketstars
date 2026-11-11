@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: marketstars
+  labels:
+    marketstars.io/phase: prereq
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketstars
+      app.kubernetes.io/component: web

@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, staging, production]
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.environment || 'ci' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy build-time values only. Never put real secrets here.
+      DATABASE_URL: mysql://u:p@localhost:3306/db
+      APP_BASE_URL: http://localhost:3000
+      SESSION_SECRET: ci-dummy-session-secret-000000000000000000
+      AUTH_MODE: demo
+      JOB_TOKEN: ci-dummy-job-token
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint --if-present
+      - run: npm run typecheck --if-present
+      - run: npm test --if-present
+      - run: npm run build
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render overlays and enforce AUTH_MODE policy
+        run: |
+          set -euo pipefail
+          for env in dev staging production; do
+            kubectl kustomize deploy/k8s/overlays/$env > /tmp/$env.yaml
+            echo "$env: $(grep -c '^kind:' /tmp/$env.yaml) resources"
+          done
+          for env in staging production; do
+            grep -qE '^\s+AUTH_MODE: oidc$' /tmp/$env.yaml || { echo "::error::$env must use AUTH_MODE=oidc"; exit 1; }
+          done
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [build, manifests]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }} # protect "production" with required reviewers
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    env:
+      ENV: ${{ inputs.environment }}
+      REGION: asia-northeast1
+      # GitHub Environment *variables* (not secrets); see deploy/gcp/README.md §11.
+      SHARED_PROJECT_ID: ${{ vars.GCP_SHARED_PROJECT_ID }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      CLUSTER: ${{ vars.GKE_CLUSTER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }} # projects/<num>/locations/global/workloadIdentityPools/github/providers/github
+          service_account: ${{ vars.GCP_DEPLOY_SA }}               # gha-deployer@<shared>.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          IMAGE="${REGION}-docker.pkg.dev/${SHARED_PROJECT_ID}/marketstars/app:${GITHUB_SHA::12}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          if gcloud artifacts docker images describe "$IMAGE" >/dev/null 2>&1; then
+            echo "Image already exists, promoting $IMAGE"
+          else
+            docker build -t "$IMAGE" .
+            docker push "$IMAGE"
+          fi
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          cluster_name: ${{ env.CLUSTER }}
+          location: ${{ env.REGION }}
+
+      - name: Set image tag
+        working-directory: deploy/k8s/overlays/${{ inputs.environment }}
+        run: kustomize edit set image "marketstars=${IMAGE}"
+
+      - name: Apply prerequisites
+        run: |
+          set -euo pipefail
+          OV=deploy/k8s/overlays/$ENV
+          kubectl apply -k $OV -l marketstars.io/phase=prereq
+          kubectl -n marketstars wait --for=condition=Ready externalsecret/marketstars-secrets --timeout=2m
+
+      - name: Run migration Job
+        run: |
+          set -euo pipefail
+          OV=deploy/k8s/overlays/$ENV
+          kubectl -n marketstars delete job marketstars-migrate --ignore-not-found --wait=true
+          kubectl apply -k $OV -l marketstars.io/phase=migrate
+          if ! kubectl -n marketstars wait --for=condition=complete job/marketstars-migrate --timeout=15m; then
+            kubectl -n marketstars logs job/marketstars-migrate -c migrate || true
+            exit 1
+          fi
+
+      - name: Rolling update
+        run: |
+          set -euo pipefail
+          OV=deploy/k8s/overlays/$ENV
+          kubectl apply -k $OV -l marketstars.io/phase=app
+          kubectl -n marketstars rollout status deploy/marketstars --timeout=10m

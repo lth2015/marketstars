@@ -1,0 +1,57 @@
+# Every 10 minutes: POST /api/internal/jobs/run on the ClusterIP Service
+# (never via the public Gateway). The endpoint is idempotent.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketstars-jobs
+  labels:
+    app.kubernetes.io/name: marketstars
+    app.kubernetes.io/component: jobs
+    marketstars.io/phase: app
+spec:
+  schedule: "*/10 * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 540
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: marketstars
+            app.kubernetes.io/component: jobs
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: run-jobs
+              image: curlimages/curl:8.10.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - >-
+                  curl -fsS --retry 2 --retry-connrefused --max-time 300
+                  -X POST
+                  -H "Authorization: Bearer ${JOB_TOKEN}"
+                  -H "Content-Type: application/json"
+                  http://marketstars.marketstars.svc.cluster.local/api/internal/jobs/run
+              env:
+                - name: JOB_TOKEN
+                  valueFrom:
+                    secretKeyRef: { name: marketstars-secrets, key: JOB_TOKEN }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }

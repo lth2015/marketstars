@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# staging: GCP project marketstars-stg, GKE Autopilot cluster marketstars-stg (asia-northeast1).
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      marketstars.io/env: staging
+    includeSelectors: false
+
+images:
+  - name: marketstars
+    newName: asia-northeast1-docker.pkg.dev/SHARED_PROJECT_ID/marketstars/app
+    newTag: IMAGE_TAG # CI sets this: kustomize edit set image marketstars=...:<git-sha>
+
+configMapGenerator:
+  - name: marketstars-config
+    behavior: merge
+    literals:
+      - AUTH_MODE=oidc
+      - APP_BASE_URL=https://staging.marketstars.example.com
+      - OIDC_REDIRECT_URI=https://staging.marketstars.example.com/auth/callback
+      - OIDC_ISSUER=https://auth.sso-stg.example.com/
+      - OIDC_CLIENT_ID=marketstars-staging
+      - SSO_API_BASE_URL=https://api.sso-stg.example.com
+      - SSO_API_AUDIENCE=https://api.sso-stg.example.com
+      - SSO_ACCOUNT_URL=https://auth.sso-stg.example.com/account
+      - SSO_CONSOLE_URL=https://auth.sso-stg.example.com/console
+      - SSO_LOGOUT_URL=https://auth.sso-stg.example.com/sso/logout
+      - OPERATOR_SSO_TENANT_ID=REPLACE_ME_STAGING_TENANT_ID
+      - CLOUD_SQL_INSTANCE=marketstars-stg:asia-northeast1:marketstars-db
+
+patches:
+  - target: { kind: ServiceAccount, name: marketstars }
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/iam.gke.io~1gcp-service-account
+        value: marketstars-app@marketstars-stg.iam.gserviceaccount.com
+  - target: { kind: SecretStore, name: gcp-secret-manager }
+    patch: |-
+      - op: replace
+        path: /spec/provider/gcpsm/projectID
+        value: marketstars-stg
+      - op: replace
+        path: /spec/provider/gcpsm/auth/workloadIdentity/clusterName
+        value: marketstars-stg
+  - target: { kind: HTTPRoute }
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value: ["staging.marketstars.example.com"]
+  - target: { kind: HorizontalPodAutoscaler, name: marketstars }
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 4

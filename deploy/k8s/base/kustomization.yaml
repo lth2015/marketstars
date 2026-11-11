@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: marketstars
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: marketstars
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - externalsecret.yaml
+  - service.yaml
+  - gateway.yaml
+  - httproute.yaml
+  - policies.yaml
+  - pdb.yaml
+  - deployment.yaml
+  - hpa.yaml
+  - cronjob.yaml
+  - migrate-job.yaml
+
+# Non-secret config. The name gets a content hash, so config changes roll the
+# Deployment. Overlays merge env-specific values. Secrets: externalsecret.yaml.
+configMapGenerator:
+  - name: marketstars-config
+    options:
+      labels:
+        marketstars.io/phase: prereq
+    literals:
+      - NODE_ENV=production
+      - AUTH_MODE=oidc
+      - APP_BASE_URL=https://marketstars.example.com
+      - OIDC_ISSUER=https://auth.sso.example.com/
+      - OIDC_CLIENT_ID=marketstars
+      - OIDC_REDIRECT_URI=https://marketstars.example.com/auth/callback
+      - OIDC_SCOPES=openid offline_access platform:read
+      - SSO_API_BASE_URL=https://api.sso.example.com
+      - SSO_API_AUDIENCE=https://api.sso.example.com
+      - SSO_ACCOUNT_URL=https://auth.sso.example.com/account
+      - SSO_CONSOLE_URL=https://auth.sso.example.com/console
+      - SSO_LOGOUT_URL=https://auth.sso.example.com/sso/logout
+      - OPERATOR_SSO_TENANT_ID=REPLACE_ME
+      # <project>:<region>:<instance>, used by the cloud-sql-proxy sidecar.
+      - CLOUD_SQL_INSTANCE=PROJECT_ID:asia-northeast1:marketstars-db
+
+images:
+  - name: marketstars
+    newName: asia-northeast1-docker.pkg.dev/SHARED_PROJECT_ID/marketstars/app
+    newTag: latest
