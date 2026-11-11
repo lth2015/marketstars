@@ -46,7 +46,7 @@ export async function devCreateAppAction(fd: FormData) {
   const slug = str(fd, "slug").toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) go("/developer/apps/new", "error", "slug は英小文字・数字・ハイフンで入力してください。");
   if (await prisma.app.findUnique({ where: { slug } })) go("/developer/apps/new", "error", "この slug は使用済みです。");
-  const app = await prisma.app.create({ data: { slug, name: str(fd, "name") || slug, tagline: "", providerId: p.id, status: "draft" } });
+  const app = await prisma.app.create({ data: { slug, name: str(fd, "name") || slug, tagline: "", searchText: "", providerId: p.id, status: "draft" } });
   const d = draftFromApp({ ...app, categories: [], industries: [], integrationTags: [] }, []);
   d.supportChannels = p.supportEmail ? [{ type: "email", value: p.supportEmail }] : [];
   d.plans = [];

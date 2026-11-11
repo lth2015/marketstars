@@ -21,7 +21,7 @@ const prisma = new PrismaClient();
         categories: { connect: [{ id: cats[i % cats.length].id }] }, industries: { connect: [{ id: inds[i % inds.length].id }] },
       },
     });
-    await prisma.planVersion.create({ data: { appId: app.id, planKey: "p", name: "プラン", ...plans[0] } });
+    await prisma.planVersion.create({ data: { appId: app.id, planKey: "p", name: "プラン", includes: "", limits: "", ...plans[0] } });
   }
   console.log("published apps:", await prisma.app.count({ where: { status: "published" } }));
 })().finally(() => prisma.$disconnect());

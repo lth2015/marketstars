@@ -20,7 +20,7 @@ npm run build && npx next start -p 3000
 curl -X POST -H "Authorization: Bearer local-job-token" localhost:3000/api/internal/jobs/run   # 计算排行等定时任务
 ```
 
-需要本地 MySQL 8 / MariaDB，连接串见 `.env.example`。
+需要本地 MySQL 8（推荐 `docker compose -f compose.local.yml up -d`，端口 3307），连接串见 `.env.example`。生产为 Cloud SQL for MySQL 8，请不要用 MariaDB 代替：MariaDB 允许 TEXT/JSON 列有默认值等，MySQL 8 会拒绝，迁移可能在本地通过、上线失败。CI 的 e2e job 使用 MySQL 8。
 
 演示身份（`/auth/login`）：
 | 身份 | 空间 | 用途 |

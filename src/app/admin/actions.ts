@@ -29,7 +29,7 @@ export async function createAppAction(fd: FormData) {
   if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) back("/admin/apps/new", "error", "slug は英小文字・数字・ハイフンで入力してください。");
   if (await prisma.app.findUnique({ where: { slug } })) back("/admin/apps/new", "error", "この slug は使用済みです。");
   const providerId = str(fd, "providerId") || (await prisma.provider.create({ data: { name: str(fd, "newProvider") || "未設定の提供会社" } })).id;
-  const app = await prisma.app.create({ data: { slug, name: str(fd, "name") || slug, tagline: "", providerId, status: "draft" } });
+  const app = await prisma.app.create({ data: { slug, name: str(fd, "name") || slug, tagline: "", searchText: "", providerId, status: "draft" } });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: app.id, action: "create", toState: "draft" });
   redirect(`/admin/apps/${app.id}?msg=${encodeURIComponent("下書きを作成しました。")}`);
 }
