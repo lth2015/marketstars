@@ -76,7 +76,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      # 只下载 Chromium，不走 apt（runner 预装了 Chrome，运行库已具备；避免 apt 源不可用时整个 job 失败）
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install chromium
       - run: npx prisma migrate deploy
       - run: npm run build
       - name: Start MarketStars (demo mode)
@@ -85,7 +86,7 @@ jobs:
           for i in $(seq 1 60); do curl -fsS http://localhost:3000/api/readyz && break; sleep 1; done
       - run: scripts/e2e-all.sh
       - if: failure()
-        run: tail -200 next.log
+        run: tail -200 next.log || true
 
   manifests:
     runs-on: ubuntu-latest
