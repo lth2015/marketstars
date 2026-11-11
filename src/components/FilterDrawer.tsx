@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 
 /** 手机/平板的「絞り込み」抽屉；桌面端为常驻侧栏。 */
-export function FilterDrawerButton({ count }: { count: number }) {
+export function FilterDrawerButton({ count, label }: { count: number; label: string }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && document.body.classList.remove("filters-open");
     window.addEventListener("keydown", onKey);
@@ -10,15 +10,15 @@ export function FilterDrawerButton({ count }: { count: number }) {
   }, []);
   return (
     <button type="button" className="btn btn-secondary btn-sm filter-drawer-toggle" onClick={() => document.body.classList.add("filters-open")}>
-      絞り込み{count > 0 ? `（${count}）` : ""}
+      {label}
     </button>
   );
 }
 
-export function FilterDrawerClose() {
+export function FilterDrawerClose({ label }: { label: string }) {
   return (
     <button type="button" className="btn btn-ghost btn-sm filter-drawer-toggle" onClick={() => document.body.classList.remove("filters-open")} style={{ marginBottom: 12 }}>
-      閉じる
+      {label}
     </button>
   );
 }
@@ -35,20 +35,20 @@ export function AutoSubmit() {
   return null;
 }
 
-export function SortSelect({ value, hrefs }: { value: string; hrefs: Record<string, string> }) {
+export function SortSelect({ value, hrefs, labels }: { value: string; hrefs: Record<string, string>; labels: { label: string; recommended: string; new: string; price: string } }) {
   return (
-    <select aria-label="並び順" value={value} onChange={(e) => (window.location.href = hrefs[e.target.value])}>
-      <option value="recommended">おすすめ順</option>
-      <option value="new">新着順</option>
-      <option value="price">価格の安い順</option>
+    <select aria-label={labels.label} value={value} onChange={(e) => (window.location.href = hrefs[e.target.value])}>
+      <option value="recommended">{labels.recommended}</option>
+      <option value="new">{labels.new}</option>
+      <option value="price">{labels.price}</option>
     </select>
   );
 }
 
-export function PerPageSelect({ value, hrefs }: { value: number; hrefs: Record<string, string> }) {
+export function PerPageSelect({ value, hrefs, label, options }: { value: number; hrefs: Record<string, string>; label: string; options: Record<number, string> }) {
   return (
-    <select aria-label="表示件数" value={value} onChange={(e) => (window.location.href = hrefs[e.target.value])}>
-      {[10, 30, 50].map((n) => <option key={n} value={n}>{n}件</option>)}
+    <select aria-label={label} value={value} onChange={(e) => (window.location.href = hrefs[e.target.value])}>
+      {[10, 30, 50].map((n) => <option key={n} value={n}>{options[n]}</option>)}
     </select>
   );
 }

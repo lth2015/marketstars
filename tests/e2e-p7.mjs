@@ -22,9 +22,25 @@ try {
     await see(page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "All apps" }));
     await see(page.getByPlaceholder("Search apps or what you want to solve"));
   });
-  await step("I2 detail CTA is localized for guests", async () => {
+  await step("I2 detail page is localized for guests (CTA, sections, plan prices)", async () => {
     await page.goto(`${BASE}/apps/pop-writer`);
     await see(page.locator(".cta-main", { hasText: "Log in to use" }));
+    await see(page.getByRole("heading", { name: "Overview" }));
+    await see(page.getByRole("heading", { name: "Plans" }));
+    await see(page.getByText("/ month (tax incl.)"));
+    await see(page.getByText("No automatic charge after the trial"));
+  });
+  await step("I2b list, home and ranking pages are localized", async () => {
+    await page.goto(`${BASE}/apps?category=analytics&industry=beauty`);
+    await see(page.getByText("No apps match your search"));
+    await see(page.getByRole("group", { name: "Category" }));
+    await page.goto(`${BASE}/apps`);
+    await see(page.getByText(/^\d+ apps$/));
+    assert.equal(await page.locator('select[aria-label="Sort by"] option[value="new"]').innerText(), "Newest");
+    await page.goto(`${BASE}/`);
+    await see(page.getByRole("heading", { name: "Browse by category" }));
+    await page.goto(`${BASE}/ranking`);
+    await see(page.getByRole("heading", { name: "Most started apps" }));
   });
   await step("I3 status badges are localized for signed-in users", async () => {
     await page.goto(`${BASE}/auth/login?returnTo=/apps/pop-writer`);
@@ -40,11 +56,16 @@ try {
     await page.getByRole("button", { name: /日間無料で試す/ }).click();
     await page.waitForURL(/done=1/);
     await see(page.locator(".badge", { hasText: "Free trial" }));
+    await page.goto(`${BASE}/my/apps`);
+    await see(page.getByRole("heading", { name: "My apps" }));
+    await see(page.getByRole("heading", { name: "Free trial" }));
+    await see(page.getByRole("link", { name: "Open app" }));
   });
   await step("I4 switching back to Japanese", async () => {
     await page.getByRole("link", { name: /日本語/ }).click();
-    await page.waitForURL(/\/my\/apps\//);
+    await page.waitForURL(/\/my\/apps$/);
     assert.equal(await page.getAttribute("html", "lang"), "ja");
+    await see(page.getByRole("heading", { name: "マイアプリ" }));
     await see(page.locator(".badge", { hasText: "無料体験中" }));
   });
 } finally {

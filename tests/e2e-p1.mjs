@@ -120,10 +120,14 @@ await step("P1-6 trial → paid conversion by invoice appears in operator queue 
 
 await step("P1-7 review: user who used the app can post; rating shows on detail", async () => {
   await page.goto(`${BASE}/apps/customer-notes#reviews`);
+  // 等待客户端组件水合完成，避免在 useActionState 绑定前点击提交
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("タイトル").fill("カルテ入力が楽に");
   await page.getByLabel("本文（10文字以上）").fill("音声メモで施術内容を残せるので、閉店後の作業が減りました。");
   await page.getByRole("button", { name: "レビューを投稿" }).click();
-  await see(page.getByText("レビューを投稿しました"));
+  const ok = page.getByText("レビューを投稿しました"), err = page.locator("form .alert-error");
+  await see(ok.or(err));
+  if (await err.count()) throw new Error("review rejected: " + (await err.first().textContent()));
   await page.reload();
   await see(page.locator("article", { hasText: "カルテ入力が楽に" }));
 });

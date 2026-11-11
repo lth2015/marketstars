@@ -682,3 +682,26 @@ model RateLimit {
   @@id([key, windowStart])
   @@index([windowStart])
 }
+
+/// 账号注销申请。MarketStars 不删除身份（由 SSO 统一处理），只受理、检查前提并转交；交易记录依法保留。
+model DeletionRequest {
+  id           String   @id @default(cuid())
+  userId       String
+  userName     String
+  email        String?
+  tenantId     String?
+  tenantName   String?
+  /// 进行中的申请为 userId（唯一），结束后置 null，保证每人同时只有一份
+  openKey      String?  @unique
+  status       String   @default("submitted") // submitted | in_review | forwarded_to_sso | closed | rejected
+  checks       Json
+  reason       String?  @db.Text
+  operatorNote String?  @db.Text
+  ssoTicketRef String?
+  handledBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+}

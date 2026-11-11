@@ -6,6 +6,7 @@ import { setUsageCap, addPaymentMethod, applyForApp, BizError, cancelPlanChange,
 import { submitReview } from "@/lib/reviews";
 import { createMandate, revokeMandate } from "@/lib/agentpay";
 import { visibleWhere } from "@/lib/notifications";
+import { submitDeletion, withdrawDeletion } from "@/lib/deletion";
 import { hit, limitIp, LIMITS } from "@/lib/ratelimit";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
@@ -219,4 +220,22 @@ export async function markNotificationsReadAction() {
   // 页头（根布局）的未读数也需要刷新
   revalidatePath("/", "layout");
   redirect("/my/notifications");
+}
+
+export async function submitDeletionAction(fd: FormData) {
+  const s = await requireSession();
+  if (fd.get("confirm") !== "on") redirect(`/account/deletion?error=${encodeURIComponent("内容を確認し、チェックを入れてください。")}`);
+  try {
+    await submitDeletion(s, String(fd.get("reason") ?? ""));
+  } catch (e) {
+    if (e instanceof BizError) redirect(`/account/deletion?error=${encodeURIComponent(e.message)}`);
+    throw e;
+  }
+  redirect(`/account/deletion?msg=${encodeURIComponent("削除の申請を受け付けました。アカウントはまだ削除されていません。進捗はこのページで確認できます。")}`);
+}
+
+export async function withdrawDeletionAction(fd: FormData) {
+  const s = await requireSession();
+  await withdrawDeletion(s, String(fd.get("id")));
+  redirect(`/account/deletion?msg=${encodeURIComponent("申請を取り下げました。")}`);
 }

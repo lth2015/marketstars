@@ -37,11 +37,11 @@ try {
   });
   await step("X2 axe: signed-in customer pages", async () => {
     await login("山田 花子", "さくらベーカリー（オーナー）", "/my/apps");
-    await axe(["/my/apps", "/my/billing", "/my/notifications", "/my/agents", "/account", "/apps/sales-insight/apply"]);
+    await axe(["/my/apps", "/my/billing", "/my/notifications", "/my/agents", "/account", "/account/deletion", "/apps/sales-insight/apply"]);
   });
   await step("X3 axe: operator and developer pages", async () => {
     await login("運営 太郎", "MarketStars 運営（オーナー）", "/admin");
-    await axe(["/admin", "/admin/analytics", "/admin/requests", "/admin/apps"]);
+    await axe(["/admin", "/admin/analytics", "/admin/requests", "/admin/apps", "/admin/deletions"]);
     await login("開発 次郎", "MarketStars Labs（提供会社）（オーナー）", "/developer");
     await axe(["/developer", "/developer/analytics"]);
   });

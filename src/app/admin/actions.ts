@@ -12,6 +12,7 @@ import { recomputeRating } from "@/lib/reviews";
 import { generatePayouts } from "@/lib/payouts";
 import { invalidateCatalog } from "@/lib/cache";
 import { emitEvent } from "@/lib/events";
+import { operatorUpdateDeletion } from "@/lib/deletion";
 
 /** 通知开发者（提供商所属空间）。 */
 async function emitDeveloperEvent(appId: string, type: string, reason?: string) {
@@ -302,4 +303,15 @@ export async function payoutAction(fd: FormData) {
     await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "provider", objectId: id, action: "set_revenue_share", data: { bps } });
     back("/admin/payouts", "msg", "分配率を更新しました（次回以降の精算書に適用）。");
   }
+}
+
+export async function deletionUpdateAction(fd: FormData) {
+  const op = await requireOperator();
+  try {
+    await operatorUpdateDeletion(op, str(fd, "id"), str(fd, "to"), str(fd, "note"), str(fd, "ssoTicketRef") || undefined);
+  } catch (e) {
+    if (e instanceof BizError) back("/admin/deletions", "error", e.message);
+    throw e;
+  }
+  back("/admin/deletions", "msg", "更新しました。");
 }
