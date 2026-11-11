@@ -45,7 +45,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
             const canTrial = p.trialDays > 0 && p.priceType !== "free" && !trialUsed;
             return (
               <div key={p.id} className="plan-card stack">
-                <h3>{p.name}</h3>
+                <h2 style={{ fontSize: 18, margin: 0 }}>{p.name}</h2>
                 <div className="price">{priceLabel(p)}</div>
                 <p className="small muted" style={{ whiteSpace: "pre-line", margin: 0 }}>{p.includes}</p>
                 {canTrial && <Link className="btn btn-primary btn-block" href={`?plan=${p.id}&mode=trial`}>{t.cta.trial(p.trialDays)}</Link>}

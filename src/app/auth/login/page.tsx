@@ -43,7 +43,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <form key={p.userId} method="post" action="/auth/demo" className="panel">
             <input type="hidden" name="userId" value={p.userId} />
             <input type="hidden" name="returnTo" value={returnTo} />
-            <h3 style={{ marginBottom: 0 }}>{p.name}</h3>
+            <h2 style={{ fontSize: 18, marginBottom: 0 }}>{p.name}</h2>
             <p className="small muted" style={{ marginTop: 0 }}>{p.description}</p>
             <div className="form-row">
               <label htmlFor={`t-${p.userId}`}>利用する空間</label>

@@ -11,6 +11,8 @@ import { formatJst } from "@/lib/time";
 import { isNew } from "@/lib/catalog";
 import { PriceText } from "@/components/AppCard";
 import { getMessages } from "@/lib/messages";
+import { config } from "@/lib/config";
+import { headers } from "next/headers";
 import { canReview, maskName } from "@/lib/reviews";
 import { ReviewForm } from "@/components/ReviewForm";
 import { Stars } from "@/components/Stars";
@@ -30,7 +32,32 @@ async function load(slug: string, preview: boolean) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const app = await load((await params).slug, false);
-  return { title: app?.name ?? "アプリ" };
+  if (!app) return { title: "アプリ", robots: { index: false } };
+  const image = app.iconUrl && /^https:\/\//.test(app.iconUrl) ? [{ url: app.iconUrl }] : undefined;
+  return {
+    title: app.name,
+    description: app.tagline,
+    alternates: { canonical: `/apps/${app.slug}` },
+    openGraph: { title: `${app.name} | MarketStars`, description: app.tagline, url: `/apps/${app.slug}`, images: image },
+  };
+}
+
+/** 结构化数据（SoftwareApplication）。评分只在有真实评论时输出。 */
+function jsonLd(app: NonNullable<Awaited<ReturnType<typeof load>>>) {
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: app.name,
+    description: app.tagline,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    provider: { "@type": "Organization", name: app.provider.name },
+    url: `${config.baseUrl}/apps/${app.slug}`,
+  };
+  if (app.minMonthlyPrice !== null) data.offers = { "@type": "Offer", price: app.minMonthlyPrice, priceCurrency: "JPY" };
+  if (app.ratingCount > 0 && app.ratingAvg !== null) data.aggregateRating = { "@type": "AggregateRating", ratingValue: app.ratingAvg, reviewCount: app.ratingCount };
+  // 防止 </script> 截断
+  return JSON.stringify(data).replace(/</g, "\\u003c");
 }
 
 export default async function AppDetail({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> }) {
@@ -69,8 +96,10 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
       <a className={`btn ${cta.variant === "secondary" ? "btn-secondary" : "btn-primary"} ${block ? "btn-block" : ""}`} href={cta.href}>{cta.label}</a>
     );
 
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <div className="container">
+      {!preview && <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLd(app) }} />}
       {preview && <div className="alert alert-warn" style={{ marginTop: 16 }}>運営プレビュー：{draft ? "未公開の下書き内容を表示しています。" : `ステータス ${app.status}`}</div>}
       <div className="breadcrumb"><Link href="/">ホーム</Link> ／ <Link href="/apps">アプリ一覧</Link> ／ {view.name}</div>
       <div className="detail-layout">
