@@ -20,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <nav className="admin-nav" aria-label="運営メニュー">
         <strong className="small muted" style={{ padding: "8px 12px" }}>運営管理（{op.role}）</strong>
         <Link href="/admin">ダッシュボード</Link>
+        <Link href="/admin/analytics">分析</Link>
         <Link href="/admin/apps">アプリ管理</Link>
         <Link href="/admin/submissions">開発者審査</Link>
         <Link href="/admin/taxonomy">分類・絞り込み</Link>

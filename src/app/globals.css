@@ -214,3 +214,6 @@ table.table { width: 100%; border-collapse: collapse; background: #fff; font-siz
 .notice { display: block; text-decoration: none; color: var(--text); }
 .notice.unread { border-left: 4px solid var(--primary); }
 @media (max-width: 1199px) { .main-nav a { padding: 8px 8px; } .user-menu .hide-sm { display: none; } .site-header .bar { gap: 16px; } }
+.header-search input { width: 180px; }
+.header-search button { white-space: nowrap; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }

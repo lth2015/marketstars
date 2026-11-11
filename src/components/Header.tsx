@@ -32,7 +32,6 @@ export async function Header() {
                 <span aria-hidden>🔔</span>{unread > 0 && <span className="bell-count">{unread > 99 ? "99+" : unread}</span>}
               </Link>
               <Link className="space-chip" href="/account" title="現在の空間">空間：{s.tenantName ?? "未選択"}</Link>
-              <Link href="/account" className="hide-sm">{s.userName}</Link>
             </>
           ) : (
             <>

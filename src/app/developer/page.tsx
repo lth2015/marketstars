@@ -50,7 +50,7 @@ export default async function DeveloperHome({ searchParams }: { searchParams: Pr
   const live = await prisma.subscription.groupBy({ by: ["appId"], where: { appId: { in: apps.map((a) => a.id) }, liveKey: { not: null }, status: { not: "pending" }, internalTest: false }, _count: true });
   return (
     <Shell>
-      <div className="section-head"><h2 style={{ margin: 0 }}>{p.name} のアプリ</h2><div className="row"><Link className="btn btn-secondary btn-sm" href="/developer/earnings">売上・精算</Link><Link className="btn btn-primary btn-sm" href="/developer/apps/new">新しいアプリ</Link></div></div>
+      <div className="section-head"><h2 style={{ margin: 0 }}>{p.name} のアプリ</h2><div className="row"><Link className="btn btn-secondary btn-sm" href="/developer/analytics">分析</Link><Link className="btn btn-secondary btn-sm" href="/developer/earnings">売上・精算</Link><Link className="btn btn-primary btn-sm" href="/developer/apps/new">新しいアプリ</Link></div></div>
       {apps.length === 0 ? <div className="empty">まだアプリはありません。</div> : (
         <div className="table-wrap"><table className="table">
           <thead><tr><th>アプリ</th><th>公開状態</th><th>審査</th><th>利用空間</th><th>評価</th></tr></thead>
