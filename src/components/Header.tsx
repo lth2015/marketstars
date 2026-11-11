@@ -2,10 +2,12 @@ import Link from "next/link";
 import { getSession, isOperator } from "@/lib/session";
 import { t } from "@/lib/messages";
 import { NavToggle } from "./NavToggle";
+import { unreadCount } from "@/lib/notifications";
 
 export async function Header() {
   const s = await getSession();
   const op = await isOperator(s);
+  const unread = await unreadCount(s);
   return (
     <header className="site-header">
       <div className="container bar">
@@ -26,6 +28,9 @@ export async function Header() {
         <div className="user-menu">
           {s ? (
             <>
+              <Link href="/my/notifications" className="bell" aria-label={`お知らせ${unread ? `（未読 ${unread} 件）` : ""}`}>
+                <span aria-hidden>🔔</span>{unread > 0 && <span className="bell-count">{unread > 99 ? "99+" : unread}</span>}
+              </Link>
               <Link className="space-chip" href="/account" title="現在の空間">空間：{s.tenantName ?? "未選択"}</Link>
               <Link href="/account" className="hide-sm">{s.userName}</Link>
             </>

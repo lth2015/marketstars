@@ -68,6 +68,7 @@ jobs:
       JOB_TOKEN: local-job-token
       LAUNCH_CLIENT_SECRET_POP_WRITER: local-pop-writer-secret
       PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
+      WEBHOOK_ALLOW_PRIVATE: "true" # 测试用 Webhook 接收端在 127.0.0.1
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4

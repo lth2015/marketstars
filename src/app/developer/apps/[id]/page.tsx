@@ -9,7 +9,9 @@ import { Flash } from "@/components/Flash";
 import { Stars } from "@/components/Stars";
 import { formatJst } from "@/lib/time";
 import { priceLabel } from "@/lib/text";
-import { devReplyAction, devSaveDraftAction, devSubmitAction } from "../../actions";
+import { devReplyAction, devSaveDraftAction, devSubmitAction, webhookAction } from "../../actions";
+import { webhookSecret } from "@/lib/webhooks";
+import { WEBHOOK_EVENT_TYPES } from "@/lib/events";
 
 export default async function DevApp({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string; error?: string }> }) {
   const { id } = await params;
@@ -19,7 +21,8 @@ export default async function DevApp({ params, searchParams }: { params: Promise
   const own = await developerApp(s, id);
   if (!own) notFound();
   const app = await prisma.app.findUniqueOrThrow({ where: { id }, include: { categories: true, industries: true, integrationTags: true, plans: { where: { current: true }, orderBy: { sortOrder: "asc" } } } });
-  const [cats, inds, integs, reviews, live] = await Promise.all([
+  const [endpoints, cats, inds, integs, reviews, live] = await Promise.all([
+    prisma.webhookEndpoint.findMany({ where: { appId: id }, include: { deliveries: { include: { event: { select: { type: true } } }, orderBy: { createdAt: "desc" }, take: 10 } }, orderBy: { createdAt: "asc" } }),
     prisma.category.findMany({ orderBy: { sortOrder: "asc" } }), prisma.industry.findMany({ orderBy: { sortOrder: "asc" } }), prisma.integrationTag.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.review.findMany({ where: { appId: id }, orderBy: { createdAt: "desc" } }),
     prisma.subscription.groupBy({ by: ["status"], where: { appId: id, internalTest: false, liveKey: { not: null } }, _count: true }),
@@ -59,6 +62,45 @@ export default async function DevApp({ params, searchParams }: { params: Promise
           <AppDraftEditor action={devSaveDraftAction} id={id} draft={d} cats={cats} inds={inds} integs={integs} showClientId={false} planRows submitLabel="下書きを保存" note="保存後「審査に提出」してください。" />
         )}
       </div>
+
+
+      <section id="webhooks" style={{ marginTop: 40 }}>
+        <h2>Webhook（契約イベントの通知）</h2>
+        <p className="small muted">利用開始・解約・支払いなどのイベントを、提供会社のサーバーへ署名付きで送信します。失敗時は 1分→5分→30分→2時間→12時間 の間隔で再試行します。受信側は <code>X-MarketStars-Signature</code>（<code>t=時刻,v1=HMAC-SHA256(secret, &quot;時刻.本文&quot;)</code>）を検証し、5分以上古いものは拒否してください。</p>
+        {endpoints.map((e) => (
+          <div key={e.id} className="panel stack" style={{ marginBottom: 12 }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <div><code style={{ wordBreak: "break-all" }}>{e.url}</code><div className="small muted">{e.enabled ? "有効" : "停止中"} ・ イベント：{e.eventTypes === "*" ? "すべて" : e.eventTypes.split(",").join("、")}</div></div>
+              <div className="row">
+                {(["test", "toggle", "delete"] as const).map((op) => (
+                  <form key={op} action={webhookAction}><input type="hidden" name="appId" value={id} /><input type="hidden" name="endpointId" value={e.id} /><input type="hidden" name="op" value={op} />
+                    <button className={`btn btn-sm ${op === "delete" ? "btn-danger" : "btn-secondary"}`} disabled={!s.isOwner}>{op === "test" ? "テスト送信" : op === "toggle" ? (e.enabled ? "停止" : "再開") : "削除"}</button></form>
+                ))}
+              </div>
+            </div>
+            <details><summary className="small">署名シークレットを表示</summary><code className="small" style={{ wordBreak: "break-all" }}>{webhookSecret(e.id)}</code></details>
+            {e.deliveries.length > 0 && (
+              <div className="table-wrap"><table className="table"><thead><tr><th>日時</th><th>イベント</th><th>結果</th><th>試行</th><th></th></tr></thead><tbody>
+                {e.deliveries.map((d) => (
+                  <tr key={d.id}><td className="small">{formatJst(d.createdAt, true)}</td><td className="small">{d.event.type}</td>
+                    <td className="small">{d.status === "succeeded" ? `成功（${d.lastStatus}）` : d.status === "dead" ? "停止（再試行上限）" : d.status === "pending" ? "送信待ち" : `失敗：${d.lastError ?? ""}`}</td><td>{d.attempts}</td>
+                    <td>{d.status !== "succeeded" && <form action={webhookAction}><input type="hidden" name="appId" value={id} /><input type="hidden" name="endpointId" value={e.id} /><input type="hidden" name="op" value="redeliver" /><input type="hidden" name="deliveryId" value={d.id} /><button className="btn btn-ghost btn-sm">再送</button></form>}</td></tr>
+                ))}
+              </tbody></table></div>
+            )}
+          </div>
+        ))}
+        {s.isOwner && (
+          <form action={webhookAction} className="panel">
+            <input type="hidden" name="appId" value={id} /><input type="hidden" name="op" value="create" />
+            <div className="form-row"><label htmlFor="wh-url">送信先 URL（https）</label><input id="wh-url" name="url" type="url" required placeholder="https://example.com/marketstars/webhook" /></div>
+            <fieldset className="form-row" style={{ border: 0, padding: 0 }}><legend style={{ fontWeight: 600, fontSize: 14 }}>イベント</legend>
+              <div className="row"><label className="check"><input type="checkbox" name="eventTypes" value="*" defaultChecked /> すべて</label>
+                {WEBHOOK_EVENT_TYPES.map((t) => <label key={t} className="check small"><input type="checkbox" name="eventTypes" value={t} /> {t}</label>)}</div></fieldset>
+            <button className="btn btn-primary btn-sm">Webhook を追加</button>
+          </form>
+        )}
+      </section>
 
       <h2 style={{ marginTop: 40 }}>レビュー</h2>
       {reviews.length === 0 ? <div className="empty small">まだレビューはありません。</div> : reviews.map((r) => (

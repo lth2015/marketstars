@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MarketStars API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     MarketStars 拟建接口（不是 SSO 已有路径）。浏览器端接口使用同源 BFF 的 HttpOnly 会话 Cookie；
     写入需 X-CSRF-Token（由 GET /api/v1/me 返回）与 Idempotency-Key。接入应用的服务端接口使用
@@ -52,6 +52,45 @@ components:
         kind: { type: [string, "null"], enum: [free, trial, paid, null] }
         plan_key: { type: [string, "null"] }
         expires_at: { type: [string, "null"], format: date-time }
+webhooks:
+  subscriptionEvent:
+    post:
+      summary: 发给提供商的契约事件（在开发者门户中按应用配置）
+      description: |
+        事件类型：subscription.trial_started / activated / renewed / plan_changed / cancel_scheduled / cancel_reverted /
+        canceled / trial_ended / expired / suspended / resumed / withdrawn、application.submitted / rejected、
+        payment.succeeded / failed、webhook.ping（测试）。
+        头：X-MarketStars-Event、X-MarketStars-Delivery（幂等用）、X-MarketStars-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "t.body")>。
+        接收方应校验签名、拒绝 5 分钟以上的旧请求，并在 10 秒内返回 2xx。非 2xx 时按 1m/5m/30m/2h/12h 重试，共 6 次。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string, description: 事件 ID（重试时不变） }
+                type: { type: string }
+                created_at: { type: string, format: date-time }
+                data:
+                  type: object
+                  properties:
+                    app: { type: [string, "null"] }
+                    amount_jpy: { type: [integer, "null"] }
+                    reason: { type: [string, "null"] }
+                    subscription:
+                      type: [object, "null"]
+                      properties:
+                        id: { type: string }
+                        tenant_id: { type: string }
+                        status: { type: string }
+                        kind: { type: string }
+                        plan_key: { type: [string, "null"] }
+                        price_jpy: { type: integer }
+                        trial_ends_at: { type: [string, "null"] }
+                        current_period_end: { type: [string, "null"] }
+                        cancel_at: { type: [string, "null"] }
+      responses:
+        "200": { description: 接收成功（任意 2xx） }
 paths:
   /api/v1/apps:
     get:

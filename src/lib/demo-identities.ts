@@ -25,7 +25,10 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     name: "開発 次郎",
     email: "dev@example.test",
     description: "アプリ提供会社（開発者ポータルで掲載申請）",
-    tenants: [{ id: "demo-tenant-devco", name: "ミライAI合同会社", owner: true }],
+    tenants: [
+      { id: "demo-tenant-devco", name: "ミライAI合同会社", owner: true },
+      { id: "demo-tenant-labs", name: "MarketStars Labs（提供会社）", owner: true },
+    ],
   },
   {
     userId: "demo0000000000000000000000000009",

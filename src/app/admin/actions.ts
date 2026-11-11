@@ -11,6 +11,14 @@ import { applyUploads, UploadError } from "@/lib/assets";
 import { recomputeRating } from "@/lib/reviews";
 import { generatePayouts } from "@/lib/payouts";
 import { invalidateCatalog } from "@/lib/cache";
+import { emitEvent } from "@/lib/events";
+
+/** 通知开发者（提供商所属空间）。 */
+async function emitDeveloperEvent(appId: string, type: string, reason?: string) {
+  const app = await prisma.app.findUniqueOrThrow({ where: { id: appId }, include: { provider: true } });
+  if (!app.provider.ownerTenantId) return;
+  await emitEvent(prisma, { type, tenantId: app.provider.ownerTenantId, appId, payload: { appName: app.name, appId, reason: reason ?? null } });
+}
 import { BizError, confirmPayment, operatorCancelAtPeriodEnd, rejectApplication, resumeSubscription, suspendSubscription } from "@/lib/subscriptions";
 
 async function requireOperator() {
@@ -70,12 +78,14 @@ export async function submissionDecisionAction(fd: FormData) {
   if (str(fd, "decision") === "approve") {
     const errors = await publishApp(id, op.userId, "approve_submission");
     if (errors.length) back("/admin/submissions", "error", `公開できません：${errors.join("、")}`);
+    await emitDeveloperEvent(id, "app.submission_approved");
     back("/admin/submissions", "msg", "承認して公開しました。");
   }
   const note = str(fd, "note");
   if (!note) back("/admin/submissions", "error", "差し戻し理由を入力してください。");
   await prisma.app.update({ where: { id }, data: { reviewStatus: "rejected", reviewNote: note } });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: id, action: "reject_submission", reason: note });
+  await emitDeveloperEvent(id, "app.submission_rejected", note);
   back("/admin/submissions", "msg", "差し戻しました。");
 }
 

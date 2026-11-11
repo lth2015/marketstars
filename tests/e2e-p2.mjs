@@ -12,7 +12,7 @@ const BASE = process.argv[2] ?? "http://localhost:3000";
 const DB = process.env.MYSQL_DB ?? "marketstars";
 const SECRET = process.env.LAUNCH_CLIENT_SECRET_POP_WRITER ?? "local-pop-writer-secret";
 const BASIC = "Basic " + Buffer.from(`pop-writer:${SECRET}`).toString("base64");
-const sql = (q) => execSync(`mysql ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
+const sql = (q) => execSync(`mysql --default-character-set=utf8mb4 ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
 const results = [];

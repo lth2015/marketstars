@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "./db";
 import { config } from "./config";
 import { reverifySession } from "./sso";
+import { recordTenantContact } from "./notify";
 
 export const SESSION_COOKIE = "ms_session";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -43,6 +44,7 @@ export async function createSession(data: {
   tokenExpiresAt?: Date;
 }) {
   const raw = randomToken();
+  await recordTenantContact(data);
   await prisma.session.create({
     data: {
       id: hashId(raw),

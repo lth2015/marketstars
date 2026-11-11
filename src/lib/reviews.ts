@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { audit } from "./audit";
 import { BizError } from "./subscriptions";
 import type { SessionUser } from "./session";
+import { emitEvent } from "./events";
 
 /** 实际利用过（试用/免费/付费开通过，不含仅申请）的空间成员才可评价。 */
 export async function canReview(s: SessionUser | null, appId: string) {
@@ -28,6 +29,8 @@ export async function submitReview(s: SessionUser, r: { appId: string; rating: n
     update: { rating, title, body, tenantId: s.tenantId!, tenantName: s.tenantName ?? "" },
   });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "review", objectId: row.id, action: "upsert", data: { rating } });
+  const app = await prisma.app.findUniqueOrThrow({ where: { id: r.appId }, include: { provider: true } });
+  if (app.provider.ownerTenantId) await emitEvent(prisma, { type: "review.created", tenantId: app.provider.ownerTenantId, appId: app.id, payload: { appName: app.name, appId: app.id, rating, reviewTitle: title }, dedupeKey: `review:${row.id}:${row.updatedAt.getTime()}` });
   await recomputeRating(r.appId);
 }
 

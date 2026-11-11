@@ -6,7 +6,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 
 const BASE = process.argv[2] ?? "http://localhost:3000";
 const DB = process.env.MYSQL_DB ?? "marketstars";
-const sql = (q) => execSync(`mysql ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
+const sql = (q) => execSync(`mysql --default-character-set=utf8mb4 ${process.env.MYSQL_ARGS ?? ""} -N ${DB} -e "${q.replace(/"/g, '\\"')}"`).toString().trim();
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
 const results = [];
