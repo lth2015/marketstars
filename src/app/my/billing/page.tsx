@@ -8,16 +8,20 @@ import { removeCardAction } from "@/app/actions";
 import { AddCardForm } from "@/components/AddCardForm";
 import { CardFields } from "@/components/CardFields";
 import { Flash } from "@/components/Flash";
+import { getMessages } from "@/lib/messages";
 
-export const metadata = { title: "請求・お支払い" };
-const LABEL: Record<string, string> = { due: "未入金", paid: "入金確認済み", refunded: "返金済み", void: "取消" };
+export async function generateMetadata() {
+  return { title: (await getMessages()).ui.billing.title };
+}
 
 export default async function Billing({ searchParams }: { searchParams: Promise<{ msg?: string; error?: string }> }) {
   const sp = await searchParams;
+  const t = await getMessages();
+  const B = t.ui.billing;
   const s = await getSession();
   if (!s) redirect("/auth/login?returnTo=/my/billing");
   if (!s.isOwner) {
-    return <div className="container" style={{ padding: "32px 16px" }}><h1>請求・お支払い</h1><div className="alert alert-warn">請求情報は空間のオーナーのみ閲覧できます。</div></div>;
+    return <div className="container" style={{ padding: "32px 16px" }}><h1>{B.title}</h1><div className="alert alert-warn">{B.ownerOnly}</div></div>;
   }
   const rows = await prisma.billingRecord.findMany({ where: { tenantId: s.tenantId! }, include: { subscription: { include: { app: { select: { name: true } } } } }, orderBy: { createdAt: "desc" } });
   const pending = await prisma.subscription.findMany({ where: { tenantId: s.tenantId!, status: "pending", paymentMode: "invoice" }, include: { app: { select: { name: true } } } });
@@ -25,29 +29,29 @@ export default async function Billing({ searchParams }: { searchParams: Promise<
   const failed = await prisma.paymentIntent.findMany({ where: { tenantId: s.tenantId!, status: "failed" }, include: { subscription: { include: { app: { select: { name: true } } } } }, orderBy: { updatedAt: "desc" }, take: 5 });
   return (
     <div className="container" style={{ paddingBottom: 64 }}>
-      <div className="breadcrumb"><Link href="/my/apps">マイアプリ</Link> ／ 請求・お支払い</div>
-      <h1 style={{ marginTop: 12 }}>請求・お支払い</h1>
-      <p className="muted small">空間：<strong>{s.tenantName}</strong>　金額はすべて税込です。</p>
+      <div className="breadcrumb"><Link href="/my/apps">{t.ui.myApps.title}</Link> ／ {B.title}</div>
+      <h1 style={{ marginTop: 12 }}>{B.title}</h1>
+      <p className="muted small"><strong>{B.spaceNote(s.tenantName ?? "")}</strong>　{B.taxNote}</p>
       <Flash msg={sp.msg} error={sp.error} />
-      <h2 style={{ marginTop: 24 }}>支払い方法</h2>
+      <h2 style={{ marginTop: 24 }}>{B.methods}</h2>
       <div className="panel stack" style={{ marginBottom: 32 }}>
-        {cards.length === 0 && <p className="small muted" style={{ margin: 0 }}>登録済みのカードはありません。</p>}
+        {cards.length === 0 && <p className="small muted" style={{ margin: 0 }}>{B.noCards}</p>}
         {cards.map((c) => (
           <form key={c.id} action={removeCardAction} className="row" style={{ justifyContent: "space-between" }}>
             <input type="hidden" name="id" value={c.id} />
-            <span><strong>{c.brand} •••• {c.last4}</strong> <span className="small muted">有効期限 {String(c.expMonth).padStart(2, "0")}/{String(c.expYear).slice(-2)}{c.subscriptions.length ? ` ・ 自動更新：${c.subscriptions.map((x) => x.app.name).join("、")}` : ""}</span></span>
-            <button className="btn btn-ghost btn-sm">削除</button>
+            <span><strong>{c.brand} •••• {c.last4}</strong> <span className="small muted">{B.expires(`${String(c.expMonth).padStart(2, "0")}/${String(c.expYear).slice(-2)}`)}{c.subscriptions.length ? B.autoRenewFor(c.subscriptions.map((x) => x.app.name).join(B.sep)) : ""}</span></span>
+            <button className="btn btn-ghost btn-sm">{B.remove}</button>
           </form>
         ))}
-        <details><summary style={{ cursor: "pointer", fontWeight: 600 }}>カードを追加</summary><div style={{ marginTop: 8 }}><AddCardForm><CardFields /></AddCardForm></div></details>
+        <details><summary style={{ cursor: "pointer", fontWeight: 600 }}>{B.addCard}</summary><div style={{ marginTop: 8 }}><AddCardForm labels={{ register: t.ui.card.register, registering: t.ui.card.registering }}><CardFields /></AddCardForm></div></details>
       </div>
-      {failed.length > 0 && <div className="alert alert-error">お支払いに失敗した請求があります：{failed.map((f) => `${f.subscription.app.name}（${yen(f.amountJpy)}・${f.failureReason ?? ""}）`).join("、")}</div>}
-      <h2>請求履歴</h2>
-      {pending.length > 0 && <div className="alert alert-info">お支払い確認待ちのお申し込み：{pending.map((p) => `${p.app.name}（${yen(p.priceJpySnapshot)}）`).join("、")}。運営からのご案内に沿ってお支払いください。</div>}
-      {rows.length === 0 ? <div className="empty">請求履歴はまだありません。</div> : (
+      {failed.length > 0 && <div className="alert alert-error">{B.failed(failed.map((f) => `${f.subscription.app.name}（${yen(f.amountJpy)}・${f.failureReason ?? ""}）`).join(B.sep))}</div>}
+      <h2>{B.history}</h2>
+      {pending.length > 0 && <div className="alert alert-info">{B.pending(pending.map((p) => `${p.app.name}（${yen(p.priceJpySnapshot)}）`).join(B.sep))}</div>}
+      {rows.length === 0 ? <div className="empty">{B.empty}</div> : (
         <div className="table-wrap"><table className="table">
-          <thead><tr><th>アプリ</th><th>対象期間</th><th>金額</th><th>状態</th><th>入金日</th><th>方法</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.id}><td>{r.subscription.app.name}{r.kind === "usage" && <span className="tag" style={{ marginLeft: 6 }}>AI従量</span>}</td><td>{formatJst(r.periodStart)} 〜 {formatJst(r.periodEnd)}</td><td>{yen(r.amountJpy)}</td><td>{LABEL[r.status] ?? r.status}</td><td>{formatJst(r.paidAt)}</td><td>{r.receiptRef?.startsWith("ch_") ? "カード" : "請求書"}</td></tr>)}</tbody>
+          <thead><tr><th>{B.cols.app}</th><th>{B.cols.period}</th><th>{B.cols.amount}</th><th>{B.cols.status}</th><th>{B.cols.paidAt}</th><th>{B.cols.method}</th></tr></thead>
+          <tbody>{rows.map((r) => <tr key={r.id}><td>{r.subscription.app.name}{r.kind === "usage" && <span className="tag" style={{ marginLeft: 6 }}>{B.usageTag}</span>}</td><td>{formatJst(r.periodStart)} 〜 {formatJst(r.periodEnd)}</td><td>{yen(r.amountJpy)}</td><td>{B.statuses[r.status] ?? r.status}</td><td>{formatJst(r.paidAt)}</td><td>{r.receiptRef?.startsWith("ch_") ? B.card : B.invoice}</td></tr>)}</tbody>
         </table></div>
       )}
     </div>

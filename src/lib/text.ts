@@ -37,3 +37,10 @@ export function safeReturnTo(v: string | null | undefined): string {
   if (!v || !v.startsWith("/") || v.startsWith("//") || v.includes("\\")) return "/";
   return v;
 }
+
+/** 按当前语言显示套餐价格；`price` 传 `(await getMessages()).ui.price`。 */
+export function localizedPrice(p: { priceType: string; priceJpy: number }, price: { free: string; contact: string; perMonth: string }): string {
+  if (p.priceType === "free") return price.free;
+  if (p.priceType === "contact") return price.contact;
+  return `${yen(p.priceJpy)}${price.perMonth}`;
+}
