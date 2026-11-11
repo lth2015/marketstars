@@ -69,6 +69,7 @@ jobs:
       LAUNCH_CLIENT_SECRET_POP_WRITER: local-pop-writer-secret
       PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
       WEBHOOK_ALLOW_PRIVATE: "true" # 测试用 Webhook 接收端在 127.0.0.1
+      TRUSTED_PROXY_HOPS: "1" # 与生产一致；e2e-p6 用 XFF 模拟客户端 IP
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -85,9 +86,15 @@ jobs:
         run: |
           nohup npx next start -p 3000 > next.log 2>&1 &
           for i in $(seq 1 60); do curl -fsS http://localhost:3000/api/readyz && break; sleep 1; done
-      - run: scripts/e2e-all.sh
+      - run: mkdir -p e2e-shots && SHOTS_DIR=$PWD/e2e-shots scripts/e2e-all.sh
       - if: failure()
         run: tail -200 next.log || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-screenshots
+          path: e2e-shots/
+          retention-days: 7
 
   manifests:
     runs-on: ubuntu-latest

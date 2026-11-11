@@ -3,10 +3,12 @@ import { prisma } from "@/lib/db";
 import { agentSubscribe, authenticateAgent } from "@/lib/agentpay";
 import { BizError } from "@/lib/subscriptions";
 import { problem } from "@/lib/api";
+import { hit, LIMITS, tooMany } from "@/lib/ratelimit";
 
 export async function GET(req: Request) {
   const m = await authenticateAgent(req);
   if (!m) return problem(401, "invalid_agent_key", "agent key invalid, revoked or expired");
+  { const rl = await hit(`agent:${m.id}`, LIMITS.agentApi); if (!rl.ok) return tooMany(rl.retryAfter); }
   const subs = await prisma.subscription.findMany({ where: { tenantId: m.tenantId, liveKey: { not: null } }, include: { app: { select: { slug: true, name: true } } } });
   return NextResponse.json({ items: subs.map((s) => ({ id: s.id, app: s.app.slug, app_name: s.app.name, status: s.status, plan: s.planNameSnapshot, price_jpy: s.priceJpySnapshot })) });
 }
@@ -15,6 +17,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const m = await authenticateAgent(req);
   if (!m) return problem(401, "invalid_agent_key", "agent key invalid, revoked or expired");
+  { const rl = await hit(`agent:${m.id}`, LIMITS.agentApi); if (!rl.ok) return tooMany(rl.retryAfter); }
   const b = (await req.json().catch(() => ({}))) as { app_slug?: string; plan_id?: string; expected_price_jpy?: number; mode?: string; idempotency_key?: string };
   if (!b.app_slug || !b.plan_id || typeof b.expected_price_jpy !== "number" || !b.idempotency_key) return problem(400, "invalid_request", "app_slug, plan_id, expected_price_jpy, idempotency_key are required");
   try {

@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
@@ -14,11 +15,11 @@ import { audit } from "@/lib/audit";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const s = await getSession();
-  if (!s) return NextResponse.redirect(new URL(`/auth/login?returnTo=/my/apps`, req.url));
+  if (!s) return NextResponse.redirect(new URL(`/auth/login?returnTo=/my/apps`, config.baseUrl));
   const sub = await prisma.subscription.findFirst({ where: { id, tenantId: s.tenantId ?? "__none__" }, include: { app: true } });
-  if (!sub || !isEntitled(sub) || sub.app.suspendedReason) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("現在このアプリを利用する権限がありません。")}`, req.url));
+  if (!sub || !isEntitled(sub) || sub.app.suspendedReason) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("現在このアプリを利用する権限がありません。")}`, config.baseUrl));
   const url = sub.app.launchUrl;
-  if (!url || !isSafeLaunchUrl(url)) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("アプリの起動先が設定されていません。")}`, req.url));
+  if (!url || !isSafeLaunchUrl(url)) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("アプリの起動先が設定されていません。")}`, config.baseUrl));
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "subscription", objectId: sub.id, action: "launch" });
   if (sub.app.integrationType !== "sso_integrated") return NextResponse.redirect(url);
   const code = randomToken(32);

@@ -3,10 +3,13 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { authenticateAppClient, problem } from "@/lib/api";
 import { isEntitled, liveSubscription } from "@/lib/subscriptions";
+import { hit, LIMITS, tooMany } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
   const app = await authenticateAppClient(req);
   if (!app) return problem(401, "invalid_client", "client authentication failed");
+  const rl = await hit(`launch:${app.id}`, LIMITS.launchExchange);
+  if (!rl.ok) return tooMany(rl.retryAfter);
   const body = (await req.json().catch(() => ({}))) as { code?: string };
   if (!body.code) return problem(400, "invalid_request", "code is required");
   const hash = crypto.createHash("sha256").update(body.code).digest("hex");

@@ -28,7 +28,7 @@ export default async function Agents({ searchParams }: { searchParams: Promise<{
     <div className="container" style={{ maxWidth: 1000, paddingBottom: 64 }}>
       <div className="breadcrumb"><Link href="/my/apps">マイアプリ</Link> ／ AIエージェント</div>
       <h1 style={{ marginTop: 12 }}>AIエージェントの支払い権限（AgentPay）</h1>
-      <p className="muted small">空間「{s.tenantName}」の AI エージェントに、予算・上限・対象アプリを決めてアプリの検索と購入を任せられます。API の使い方は <Link href="/api/openapi">OpenAPI</Link> の <code>/api/agent/v1</code> を参照してください。</p>
+      <p className="muted small">空間「{s.tenantName}」の AI エージェントに、予算・上限・対象アプリを決めてアプリの検索と購入を任せられます。API の使い方は <a href="/api/openapi">OpenAPI</a> の <code>/api/agent/v1</code> を参照してください。</p>
       <Flash msg={sp.msg} error={sp.error} />
       {s.isOwner ? <MandateForm apps={apps} scopes={AGENT_SCOPES} /> : <div className="alert alert-warn">権限の発行は空間のオーナーのみ可能です。</div>}
 

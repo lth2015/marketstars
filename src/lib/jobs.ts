@@ -6,6 +6,7 @@ import { autoPayouts } from "./payouts";
 import { anchorLedger, ingestLedger } from "./ledger";
 import { emitReminders, processEvents, sendPendingEmails } from "./notify";
 import { deliverDueWebhooks } from "./webhooks";
+import { cleanupRateLimits } from "./ratelimit";
 
 /** 以 JobLock 行实现跨副本互斥（5 分钟租约），任务本身也是幂等的。 */
 async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | "locked"> {
@@ -47,6 +48,7 @@ export async function runJobs() {
   const ranking = rankingDue ? await withLock("ranking", () => computeRanking()) : "skipped";
   await prisma.authState.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 3600000) } } });
   await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+  await cleanupRateLimits();
   await prisma.launchTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86400000) } } });
   const dispatch = await runEventJobs();
   return { downgraded, renewed, expired, usage, payouts, ledger, ranking, dispatch };

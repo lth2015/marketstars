@@ -64,7 +64,8 @@ export default async function AppDetail({ params, searchParams }: { params: Prom
     cta.disabled || !cta.href ? (
       <button className={`btn btn-primary ${block ? "btn-block" : ""}`} disabled aria-describedby="cta-note">{cta.label}</button>
     ) : (
-      <Link className={`btn ${cta.variant === "secondary" ? "btn-secondary" : "btn-primary"} ${block ? "btn-block" : ""}`} href={cta.href}>{cta.label}</Link>
+      // 普通链接：目标可能是有副作用的 /launch 路由，不能让 Next 预取
+      <a className={`btn ${cta.variant === "secondary" ? "btn-secondary" : "btn-primary"} ${block ? "btn-block" : ""}`} href={cta.href}>{cta.label}</a>
     );
 
   return (

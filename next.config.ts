@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "12mb" } },
   async headers() {
     return [
+      // 自托管字体：分片文件名随版本固定，长缓存
+      { source: "/fonts/noto-sans-jp/:file*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+      { source: "/fonts/noto-sans-jp.css", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
       {
         source: "/:path*",
         headers: [

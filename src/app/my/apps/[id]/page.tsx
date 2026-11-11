@@ -61,7 +61,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
           {sub.scheduledPlan && <><dt>{sub.status === "trialing" ? "切り替え申込中" : "次の期間から"}</dt><dd>{sub.scheduledPlan.name}（{priceLabel(sub.scheduledPlan)}）</dd></>}
           {sub.request && <><dt>同意した規約</dt><dd>版 {sub.request.termsVersion}（{formatJst(sub.request.agreedAt, true)}）</dd></>}
         </dl>
-        {ok && <div style={{ marginTop: 16 }}><Link className="btn btn-primary" href={`/launch/${sub.id}`}>アプリを開く</Link></div>}
+        {ok && <div style={{ marginTop: 16 }}><a className="btn btn-primary" href={`/launch/${sub.id}`}>アプリを開く</a></div>}
       </div>
 
       <h2 style={{ marginTop: 32 }}>契約の管理</h2>

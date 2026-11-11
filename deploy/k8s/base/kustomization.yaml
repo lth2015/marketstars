@@ -42,6 +42,10 @@ configMapGenerator:
       - SSO_CONSOLE_URL=https://auth.sso.example.com/console
       - SSO_LOGOUT_URL=https://auth.sso.example.com/sso/logout
       - OPERATOR_SSO_TENANT_ID=REPLACE_ME
+      # GCP 外部 LB 在 X-Forwarded-For 末尾追加 1 跳（客户端 IP 在其前一项）
+      - TRUSTED_PROXY_HOPS=1
+      - MAIL_TRANSPORT=log
+      - CATALOG_CACHE_SECONDS=15
       # <project>:<region>:<instance>, used by the cloud-sql-proxy sidecar.
       - CLOUD_SQL_INSTANCE=PROJECT_ID:asia-northeast1:marketstars-db
 
