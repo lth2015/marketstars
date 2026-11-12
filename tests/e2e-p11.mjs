@@ -89,6 +89,31 @@ try {
     assert.ok(ranking.items.length >= 3, "ranking is recomputed after reset");
   });
 
+  await step("G7 pre-seeded data lets later scenarios start without setup (contracts, billing history, operator queues, revenue)", async () => {
+    await page.goto(`${BASE}/demo`);
+    await open("manage", 0);
+    await page.waitForURL(/\/my\/apps$/);
+    await see(page.locator(".badge", { hasText: "利用中" }));
+    await see(page.locator(".badge", { hasText: "無料体験中" }));
+    await page.goto(`${BASE}/demo`);
+    await open("manage", 1);
+    await page.waitForURL(/\/my\/billing$/);
+    assert.ok((await page.locator("tbody tr", { hasText: "クチコミ返信アシスタント" }).count()) >= 3);
+    await page.goto(`${BASE}/demo`);
+    await open("invoice", 1);
+    await page.waitForURL(/\/admin\/requests$/);
+    await see(page.locator(".panel", { hasText: "在庫アラート" }));
+    await see(page.locator(".panel", { hasText: "AI電話受付" }));
+    await page.goto(`${BASE}/admin/inquiries`);
+    await see(page.getByText("Q-DEMO-0001"));
+    // 売上推移：過去の月にも入金がある（ゼロの棒だけにならない）
+    const months = Number(sql("SELECT COUNT(DISTINCT DATE_FORMAT(paidAt, '%Y-%m')) FROM BillingRecord WHERE paidAt IS NOT NULL"));
+    assert.ok(months >= 4, `revenue months: ${months}`);
+    // リセット直後に定期ジョブも実行済み：台帳に記帳され、先月分の精算書がある
+    assert.ok(Number(sql("SELECT COUNT(*) FROM LedgerEntry")) > 0);
+    assert.ok(Number(sql("SELECT COUNT(*) FROM PayoutStatement")) > 0);
+  });
+
   await step("G6 the guide and reset do not exist outside demo mode (robots also excludes /demo)", async () => {
     const robots = await (await fetch(`${BASE}/robots.txt`)).text();
     assert.match(robots, /Disallow: \/demo/);

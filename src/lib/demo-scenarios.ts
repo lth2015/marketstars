@@ -9,6 +9,7 @@ export const P = {
 export const T = {
   sakura: "demo-tenant-sakura",
   minato: "demo-tenant-minato",
+  hikari: "demo-tenant-hikari",
   devco: "demo-tenant-devco",
   ops: "demo-ops-tenant",
 } as const;
@@ -48,16 +49,18 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     summary: "申し込みは「申込中」のまま。運営が外部の入金証憑番号と金額を入力して確認した時点から1か月の利用期間が始まります。同じ証憑の二重確認はできません。",
     steps: [
       { title: "顧客カルテAIを請求書払いで申し込む", hint: "さくらベーカリーのオーナーとして「請求書払い」を選びます。", path: "/apps/customer-notes/apply", as: { userId: P.hanako, tenantId: T.sakura } },
-      { title: "運営：お申し込みの処理で入金を確認", hint: "証憑番号と金額（¥2,200）を入力して確認します。", path: "/admin/requests", as: { userId: P.taro, tenantId: T.ops } },
+      { title: "運営：お申し込みの処理で入金を確認", hint: "証憑番号と金額（¥2,200）を入力して確認します。ほかの店舗からの申込（在庫アラート・AI電話受付）も処理待ちに入っています。", path: "/admin/requests", as: { userId: P.taro, tenantId: T.ops } },
       { title: "顧客側：利用中になったことを確認", hint: "マイアプリで「利用中」、契約内容に利用期間が表示されます。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.sakura } },
     ],
   },
   {
     id: "manage",
     title: "4. 契約の管理：期末解約・取り消し・プラン変更",
-    summary: "有料契約は期間終了時に解約（日割りなし）、解約予定は取り消し可能。プラン変更は次の期間から反映されます。シナリオ2の後に実施してください。",
+    summary: "ひかり整骨院には、3か月分の入金履歴がある有料契約・無料プラン・残り3日の無料体験があらかじめ入っています。有料契約は期間終了時に解約（日割りなし）、解約予定は取り消し可能。プラン変更は次の期間から反映されます。",
     steps: [
-      { title: "マイアプリから契約内容を開いて操作する", hint: "みなと美容室のオーナーとして、期末解約 → 取り消し、プラン変更を試します。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.minato } },
+      { title: "マイアプリで「利用中・無料体験中」を確認する", hint: "山田 花子／ひかり整骨院。体験の残り日数と、有料契約の利用期間が表示されます。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "請求・お支払いで3か月分の入金履歴を見る", hint: "請求書払いの入金確認済みの記録が並びます。", path: "/my/billing", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "契約内容から期末解約 → 取り消し、プラン変更を試す", hint: "マイアプリの「契約内容」から操作します。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
     ],
   },
   {
@@ -81,10 +84,11 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
   {
     id: "ops",
     title: "7. 運営ダッシュボードと台帳",
-    summary: "MRR・有料契約数・体験からの転換率などの KPI はデータベースの実数から計算され、グラフには表形式の表示もあります。お金の動きは改ざん検知できる台帳に記録されます。",
+    summary: "過去5か月分の入金履歴が入っているため、売上の推移グラフがそのまま見られます。MRR・有料契約数・体験からの転換率などの KPI はデータベースの実数から計算され、グラフには表形式の表示もあります。お金の動きは改ざん検知できる台帳に記録されます。",
     steps: [
       { title: "運営 KPI", hint: "運営 太郎（MarketStars 運営）。", path: "/admin/analytics", as: { userId: P.taro, tenantId: T.ops } },
-      { title: "改ざん検知台帳", hint: "ハッシュチェーンの検証結果と CSV 出力。", path: "/admin/ledger", as: { userId: P.taro, tenantId: T.ops } },
+      { title: "お問い合わせの対応", hint: "未対応・対応中のお問い合わせが入っています。担当と状態を更新できます。", path: "/admin/inquiries", as: { userId: P.taro, tenantId: T.ops } },
+      { title: "改ざん検知台帳", hint: "ハッシュチェーンの検証結果と CSV 出力（定期ジョブの実行後に記帳されます）。", path: "/admin/ledger", as: { userId: P.taro, tenantId: T.ops } },
     ],
   },
   {

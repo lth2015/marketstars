@@ -2,6 +2,7 @@
 // 由 prisma/seed.ts（命令行）和演示模式下的「重置演示数据」共用。
 import type { PrismaClient } from "@prisma/client";
 import { buildSearchText, derivePricing } from "./catalog";
+import { addOneMonthJst } from "./time";
 
 const days = (n: number) => new Date(Date.now() - n * 86400000);
 
@@ -135,6 +136,59 @@ export async function seedDemo(prisma: PrismaClient): Promise<number> {
       await prisma.subscription.create({ data: { tenantId, tenantName: `合成テスト店舗${i}`, appId: a.id, planVersionId: plan.id, kind, status: "active", liveKey: `${tenantId}:${a.id}`, priceJpySnapshot: plan.priceJpy, planNameSnapshot: plan.name, startedAt: started, currentPeriodStart: started, currentPeriodEnd: kind === "paid" ? new Date(started.getTime() + 30 * 86400000) : null, createdBy: "seed" } });
     }
   }
+
+  // ── デモを途中から始められるようにする補助データ（すべて合成）──────────────────────
+  // MarketStars Labs のアプリには先月の売上を作らない（e2e-p2 G6 が Labs の精算額を検証するため）。
+  const bySlug = new Map(all.map((a) => [a.slug, a]));
+  const monthly = (slug: string) => bySlug.get(slug)!.plans.find((p) => p.priceType === "monthly")!;
+  const paidHistory = async (o: { tenantId: string; tenantName: string; slug: string; months: number; receiptPrefix: string }) => {
+    const app = bySlug.get(o.slug)!;
+    const plan = monthly(o.slug);
+    // 最初の期間開始をおよそ (months-1) か月前に置き、月単位で進める。最後の期間は数日前に始まり、今日を含む。
+    const firstStart = days(5 + 30 * (o.months - 1));
+    const sub = await prisma.subscription.create({ data: { tenantId: o.tenantId, tenantName: o.tenantName, appId: app.id, planVersionId: plan.id, kind: "paid", status: "active", liveKey: `${o.tenantId}:${app.id}`, priceJpySnapshot: plan.priceJpy, planNameSnapshot: plan.name, startedAt: firstStart, paymentMode: "invoice", createdBy: "seed" } });
+    let ps = firstStart;
+    for (let i = 0; i < o.months; i++) {
+      const pe = addOneMonthJst(ps);
+      const bill = await prisma.billingRecord.create({ data: { tenantId: o.tenantId, subscriptionId: sub.id, amountJpy: plan.priceJpy, status: "paid", periodStart: ps, periodEnd: pe, receiptRef: `${o.receiptPrefix}-${i + 1}`, paidAmountJpy: plan.priceJpy, paidAt: ps, confirmedBy: "seed" } });
+      await prisma.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind: "paid", startsAt: ps, endsAt: pe, billingRecordId: bill.id } });
+      if (i === o.months - 1) await prisma.subscription.update({ where: { id: sub.id }, data: { currentPeriodStart: ps, currentPeriodEnd: pe } });
+      ps = pe;
+    }
+    return sub;
+  };
+
+  // 1) 山田 花子の 3 つ目の空間「ひかり整骨院」：有料（請求書払い・3か月分の入金履歴）、無料、無料体験中
+  const hikari = { tenantId: "demo-tenant-hikari", tenantName: "ひかり整骨院" };
+  await paidHistory({ ...hikari, slug: "review-reply", months: 3, receiptPrefix: "DEMO-HIKARI-RR" });
+  const mt = bySlug.get("menu-translator")!;
+  const mtFree = mt.plans.find((p) => p.priceType === "free")!;
+  await prisma.subscription.create({ data: { ...hikari, appId: mt.id, planVersionId: mtFree.id, kind: "free", status: "active", liveKey: `${hikari.tenantId}:${mt.id}`, priceJpySnapshot: 0, planNameSnapshot: mtFree.name, startedAt: days(20), createdBy: "seed" } });
+  const sp = bySlug.get("shift-planner")!;
+  const spPaid = monthly("shift-planner");
+  await prisma.trialUsage.create({ data: { tenantId: hikari.tenantId, appId: sp.id, startedAt: days(27) } });
+  await prisma.subscription.create({ data: { ...hikari, appId: sp.id, planVersionId: spPaid.id, kind: "trial", status: "trialing", liveKey: `${hikari.tenantId}:${sp.id}`, priceJpySnapshot: 0, planNameSnapshot: spPaid.name, startedAt: days(27), trialEndsAt: new Date(Date.now() + 3 * 86400000), createdBy: "seed" } });
+
+  // 2) 運営 KPI の推移グラフ用：過去数か月の有料契約と入金（30日より前に開始するので利用開始ランキングには影響しない）
+  const history: [string, number][] = [["customer-notes", 5], ["sales-insight", 4], ["review-reply", 4], ["shift-planner", 3], ["customer-notes", 2], ["sales-insight", 2]];
+  for (const [i, [slug, months]] of history.entries()) {
+    const sub = await paidHistory({ tenantId: `history-tenant-${i}`, tenantName: `合成店舗H${i}`, slug, months, receiptPrefix: `DEMO-H${i}` });
+    // 直近の2件は無料体験から有料へ切り替えた店舗（体験→有料の転換率に反映される）
+    if (months === 2) await prisma.trialUsage.create({ data: { tenantId: sub.tenantId, appId: sub.appId, startedAt: new Date(sub.startedAt!.getTime() - 14 * 86400000) } });
+  }
+
+  // 3) 運営の処理待ち：請求書払いのお申し込み 2 件（e2e が使う売上インサイトAI・顧客カルテAI以外）
+  for (const [i, slug] of ["inventory-alert", "phone-concierge"].entries()) {
+    const a = bySlug.get(slug)!;
+    const plan = monthly(slug);
+    const tenantId = `pending-tenant-${i}`;
+    const sub = await prisma.subscription.create({ data: { tenantId, tenantName: ["にじいろ酒店", "こもれび歯科"][i], appId: a.id, planVersionId: plan.id, kind: "paid", status: "pending", liveKey: `${tenantId}:${a.id}`, priceJpySnapshot: plan.priceJpy, planNameSnapshot: plan.name, paymentMode: "invoice", createdBy: "seed", createdAt: days(1 + i) } });
+    await prisma.applicationRequest.create({ data: { subscriptionId: sub.id, tenantId, requestedBy: `pending-user-${i}`, requestedByName: ["小林 一郎", "中村 さち"][i], idempotencyKey: `seed-pending-${i}`, termsVersion: "2026-11-01", agreedAt: days(1 + i), contactNote: ["請求書の宛名：にじいろ酒店 経理担当", null][i] } });
+  }
+
+  // 4) お問い合わせ 2 件（未対応・対応中）
+  await prisma.inquiry.create({ data: { publicNo: "Q-DEMO-0001", type: "billing", name: "小林 一郎", email: "kobayashi@example.test", company: "にじいろ酒店", appId: bySlug.get("inventory-alert")!.id, message: "請求書払いで申し込みました。振込先と期限を教えてください。", createdAt: days(1) } });
+  await prisma.inquiry.create({ data: { publicNo: "Q-DEMO-0002", type: "usage", name: "中村 さち", email: "nakamura@example.test", company: "こもれび歯科", appId: bySlug.get("faq-bot")!.id, message: "よくある質問の登録件数に上限はありますか。", status: "in_progress", assignee: "運営 太郎", note: "提供会社に確認中", createdAt: days(3) } });
 
   const help = [
     ["getting-started", "はじめての方へ", "MarketStars は、お店の仕事に役立つ AI アプリを探して、すぐに使い始められるアプリマーケットです。\n\n1. アプリ一覧から目的に合うアプリを探します。\n2. 「ログインして利用する」から MarketStars アカウントでログインし、利用する空間（店舗）を選びます。\n3. 無料プランや無料体験はすぐに開始できます。有料プランはお申し込み後、運営が契約とお支払いを確認してから利用開始となります。\n4. 利用中のアプリは「マイアプリ」から開けます。"],

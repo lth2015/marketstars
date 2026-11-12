@@ -7,10 +7,11 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     userId: "demo0000000000000000000000000001",
     name: "山田 花子",
     email: "hanako@example.test",
-    description: "2つの店舗空間のオーナー",
+    description: "3つの店舗空間のオーナー（ひかり整骨院は契約・請求の履歴あり）",
     tenants: [
       { id: "demo-tenant-sakura", name: "さくらベーカリー", owner: true },
       { id: "demo-tenant-minato", name: "みなと美容室", owner: true },
+      { id: "demo-tenant-hikari", name: "ひかり整骨院", owner: true },
     ],
   },
   {

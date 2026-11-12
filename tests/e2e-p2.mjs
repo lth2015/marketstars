@@ -113,7 +113,8 @@ await step("G6 payouts: operator generates last month statement with revenue sha
   // 重复生成不重算
   await page.getByRole("button", { name: "精算書を作成" }).click();
   await page.waitForURL(/msg=/);
-  assert.equal(sql(`SELECT COUNT(*) FROM PayoutStatement`), "1");
+  // 他の提供会社の精算書（シードの入金履歴から自動生成）は対象外：Labs の当月分が 1 件のまま
+  assert.equal(sql(`SELECT COUNT(*) FROM PayoutStatement ps JOIN Provider p ON p.id=ps.providerId WHERE p.name='MarketStars Labs'`), "1");
 });
 
 await step("G7 developer uploads icon/screenshot (PNG ok, disguised SVG rejected) and sees earnings page", async () => {
