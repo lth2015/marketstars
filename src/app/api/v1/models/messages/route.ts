@@ -3,7 +3,10 @@ import { prisma } from "@/lib/db";
 import { authenticateAppClient, problem } from "@/lib/api";
 import { isEntitled, liveSubscription } from "@/lib/subscriptions";
 import { ALLOWED_MODELS, DEFAULT_MODEL, chat, type ChatMessage } from "@/lib/models/gateway";
-import { costMilli, monthUsage } from "@/lib/usage";
+import { costMilli, jstMonth } from "@/lib/usage";
+
+class Dup extends Error {}
+class Cap extends Error {}
 import { hit, LIMITS, tooMany } from "@/lib/ratelimit";
 import { log } from "@/lib/log";
 
@@ -27,26 +30,42 @@ export async function POST(req: Request) {
   if (!rl.ok) return tooMany(rl.retryAfter);
   const sub = await liveSubscription(b.tenant_id, app.id);
   if (!sub || !isEntitled(sub) || app.suspendedReason) return problem(403, "not_entitled", "tenant has no active entitlement");
-  const dup = await prisma.usageEvent.findUnique({ where: { appId_requestId: { appId: app.id, requestId: b.request_id } } });
-  if (dup) return problem(409, "duplicate_request", "request_id already used; usage was recorded once");
   const unit = sub.plan.tokenPriceJpyPerMTok;
-  if (sub.usageCapJpy !== null && unit > 0) {
-    const used = await monthUsage(sub.id);
-    if (used.costJpy >= sub.usageCapJpy) return problem(429, "usage_cap_reached", `monthly usage cap ¥${sub.usageCapJpy} reached`);
+  const maxTokens = Math.min(Math.max(16, b.max_tokens ?? 1024), 4096);
+  const estInput = Math.ceil(totalChars / 1.5) + 16;
+  // 予約：契約行をロックし、今月の利用額＋このリクエストの最大費用が上限内か確認してから、request_id で仮の利用記録を入れる。
+  // 同時リクエストは互いの予約を数えるので上限を超えず、同じ request_id は最初の 1 件だけがモデルを呼ぶ。
+  const month = jstMonth();
+  const requestId = b.request_id;
+  let reservation: { id: string };
+  try {
+    reservation = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Subscription WHERE id = ${sub.id} FOR UPDATE`;
+      if (await tx.usageEvent.findUnique({ where: { appId_requestId: { appId: app.id, requestId } } })) throw new Dup();
+      const estCost = costMilli(estInput + maxTokens, unit);
+      if (sub.usageCapJpy !== null && unit > 0) {
+        const agg = await tx.usageEvent.aggregate({ where: { subscriptionId: sub.id, createdAt: { gte: month.start, lt: month.end } }, _sum: { costMilliJpy: true } });
+        const used = agg._sum.costMilliJpy ?? 0;
+        if (used >= sub.usageCapJpy * 1000 || used + estCost > sub.usageCapJpy * 1000) throw new Cap();
+      }
+      return tx.usageEvent.create({ data: { appId: app.id, requestId, tenantId: sub.tenantId, subscriptionId: sub.id, planVersionId: sub.planVersionId, model: `${model} (reserved)`, inputTokens: estInput, outputTokens: maxTokens, unitPriceJpyPerMTok: unit, costMilliJpy: estCost } });
+    });
+  } catch (e) {
+    if (e instanceof Dup || (e as { code?: string }).code === "P2002") return problem(409, "duplicate_request", "request_id already used; usage was recorded once");
+    if (e instanceof Cap) return problem(429, "usage_cap_reached", `monthly usage cap ¥${sub.usageCapJpy} reached`);
+    throw e;
   }
 
   let r;
   try {
-    r = await chat({ model, system: b.system, messages: b.messages, maxTokens: Math.min(Math.max(16, b.max_tokens ?? 1024), 4096), effort: b.effort });
+    r = await chat({ model, system: b.system, messages: b.messages, maxTokens, effort: b.effort });
   } catch (e) {
+    await prisma.usageEvent.delete({ where: { id: reservation.id } }).catch(() => {});
     await log("ERROR", "model.gateway.failed", { app: app.slug, error: String(e) });
     return problem(502, "model_error", "model provider error");
   }
   const tokens = r.inputTokens + r.outputTokens;
-  try {
-    await prisma.usageEvent.create({ data: { appId: app.id, requestId: b.request_id, tenantId: sub.tenantId, subscriptionId: sub.id, planVersionId: sub.planVersionId, model: r.model, inputTokens: r.inputTokens, outputTokens: r.outputTokens, unitPriceJpyPerMTok: unit, costMilliJpy: costMilli(tokens, unit) } });
-  } catch {
-    return problem(409, "duplicate_request", "request_id already used");
-  }
+  // 予約を実際の利用量に置き換える
+  await prisma.usageEvent.update({ where: { id: reservation.id }, data: { model: r.model, inputTokens: r.inputTokens, outputTokens: r.outputTokens, costMilliJpy: costMilli(tokens, unit) } });
   return NextResponse.json({ text: r.text, model: r.model, stop_reason: r.stopReason, usage: { input_tokens: r.inputTokens, output_tokens: r.outputTokens, unit_price_jpy_per_mtok: unit, cost_jpy: costMilli(tokens, unit) / 1000 } });
 }

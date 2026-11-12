@@ -71,6 +71,9 @@ export async function agentSubscribe(m: AgentMandate, input: { appSlug: string; 
   // 预留：锁住授权行，检查预算后写入 pending 记录（并发请求不会超出预算）
   const reserve = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM AgentMandate WHERE id = ${m.id} FOR UPDATE`;
+    // 同じキーの同時リクエスト：ロック後にもう一度確認し、先に処理された結果を返す（500 にしない）
+    const again = await tx.agentTransaction.findUnique({ where: { mandateId_idempotencyKey: { mandateId: m.id, idempotencyKey: input.idempotencyKey } } });
+    if (again) return { row: again, reason: again.reason, existing: true as const };
     let reason: string | null = null;
     if (!hasScope(m, "subscribe")) reason = "この権限ではアプリを購入できません（subscribe スコープなし）。";
     else if (!app || !plan) reason = "アプリまたはプランが見つかりません。";
@@ -88,8 +91,12 @@ export async function agentSubscribe(m: AgentMandate, input: { appSlug: string; 
       if (!card) reason = "空間に登録済みのカードがありません。";
     }
     const row = await tx.agentTransaction.create({ data: { mandateId: m.id, tenantId: m.tenantId, appId: app?.id ?? null, amountJpy: amount, status: reason ? "denied" : "pending", reason, idempotencyKey: input.idempotencyKey } });
-    return { row, reason };
+    return { row, reason, existing: false as const };
   });
+  if (reserve.existing) {
+    const p = reserve.row;
+    return { status: p.status as AgentSubscribeResult["status"], reason: p.reason ?? undefined, subscriptionId: p.subscriptionId ?? undefined, amountJpy: p.amountJpy, transactionId: p.id };
+  }
   const base = { amountJpy: amount, transactionId: reserve.row.id };
   if (reserve.reason) {
     await audit(prisma, { actorId: `agent:${m.id}`, actorType: "user", tenantId: m.tenantId, objectType: "agent_transaction", objectId: reserve.row.id, action: "denied", reason: reserve.reason });
