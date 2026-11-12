@@ -7,7 +7,10 @@ import { emitEvent } from "./events";
 /** 实际利用过（试用/免费/付费开通过，不含仅申请）的空间成员才可评价。 */
 export async function canReview(s: SessionUser | null, appId: string) {
   if (!s?.tenantId) return false;
-  const used = await prisma.subscription.count({ where: { tenantId: s.tenantId, appId, startedAt: { not: null }, status: { notIn: ["pending", "rejected", "withdrawn"] } } });
+  // 提供会社自身の空間と社内テストの利用は対象外（自作自演の評価を防ぐ）
+  const app = await prisma.app.findUnique({ where: { id: appId }, select: { provider: { select: { ownerTenantId: true } } } });
+  if (!app || app.provider.ownerTenantId === s.tenantId) return false;
+  const used = await prisma.subscription.count({ where: { tenantId: s.tenantId, appId, internalTest: false, startedAt: { not: null }, status: { notIn: ["pending", "rejected", "withdrawn"] } } });
   return used > 0;
 }
 

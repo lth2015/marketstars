@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { audit } from "./audit";
 import { buildSearchText, derivePricing } from "./catalog";
-import { isSafeLaunchUrl } from "./text";
+import { isSafeLaunchUrl, safeReturnTo } from "./text";
 import { invalidateCatalog } from "./cache";
 
 export type PlanProposal = { key: string; name: string; priceType: "free" | "monthly" | "contact"; priceJpy: number; trialDays: number; includes: string; limits: string; ext: boolean; sortOrder: number; retire?: boolean; tokenPrice?: number };
@@ -19,7 +19,10 @@ export type AppDraft = {
 };
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
-export const okImage = (u: string) => /^https:\/\//.test(u) || /^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(u) || u.startsWith("/");
+// 画像は https・data URI（<img> 内では script は動かない）・アップロード済み資産のみ。「//host」などの相対 URL は不可
+export const okImage = (u: string) => /^https:\/\//.test(u) || /^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(u) || /^\/api\/assets\/[A-Za-z0-9_-]+$/.test(u);
+// 利用規約・プライバシーのリンクは https か、サイト内のパスのみ（javascript: など他のスキームは不可）
+export const okLink = (u: string) => /^https:\/\/[^\s]+$/.test(u) || (u.startsWith("/") && safeReturnTo(u) === u);
 
 export function draftFromForm(fd: FormData, fixed: { providerId?: string; launchClientId?: string | null } = {}): AppDraft {
   const lines = (k: string) => str(fd, k).split("\n").map((x) => x.trim()).filter(Boolean);
@@ -68,7 +71,7 @@ export function validateDraft(d: AppDraft, currentPlanCount: number): string[] {
   if (d.plans?.some((p) => !p.retire && p.priceType === "monthly" && p.priceJpy <= 0)) e.push("月額料金（1円以上）");
   if (d.plans?.some((p) => !/^[a-z0-9-]{1,40}$/.test(p.key))) e.push("プランキー（英小文字・数字）");
   if (!d.supportChannels.length) e.push("サポート方法");
-  if (!d.termsUrl || !d.privacyUrl) e.push("利用規約・プライバシーポリシーのリンク");
+  if (!d.termsUrl || !d.privacyUrl || !okLink(d.termsUrl) || !okLink(d.privacyUrl)) e.push("利用規約・プライバシーポリシーのリンク（https）");
   if (!d.launchUrl || !isSafeLaunchUrl(d.launchUrl)) e.push("アプリ起動 URL（https）");
   if (d.integrationType === "sso_integrated" && !d.launchClientId) e.push("接入 client ID（運営が発行）");
   return e;
@@ -93,15 +96,22 @@ async function applyPlanProposals(tx: Prisma.TransactionClient, appId: string, p
 }
 
 /** 发布草稿。返回缺失项（非空则未发布）。 */
-export async function publishApp(appId: string, actorId: string, action = "publish"): Promise<string[]> {
-  const app = await prisma.app.findUniqueOrThrow({ where: { id: appId }, include: { plans: { where: { current: true } } } });
-  const d = app.draft as unknown as AppDraft | null;
-  if (!d) return ["公開する下書き"];
-  const errors = validateDraft(d, app.plans.length);
-  if (errors.length) return errors;
-  const provider = await prisma.provider.findUniqueOrThrow({ where: { id: d.providerId } });
-  const now = new Date();
+export async function publishApp(appId: string, actorId: string, action = "publish", expectSubmission?: { submittedAt: Date }): Promise<string[]> {
+  let errors: string[] = [];
   await prisma.$transaction(async (tx) => {
+    // 行をロックしてから下書きを読む：審査中の提出なら、運営が見た提出（submittedAt）と同じであることを確認
+    await tx.$queryRaw`SELECT id FROM App WHERE id = ${appId} FOR UPDATE`;
+    const app = await tx.app.findUniqueOrThrow({ where: { id: appId }, include: { plans: { where: { current: true } } } });
+    if (expectSubmission && (app.reviewStatus !== "submitted" || app.submittedAt?.getTime() !== expectSubmission.submittedAt.getTime())) {
+      errors = ["提出内容が変わっています。画面を更新して確認し直してください"];
+      return;
+    }
+    const d = app.draft as unknown as AppDraft | null;
+    if (!d) { errors = ["公開する下書き"]; return; }
+    errors = validateDraft(d, app.plans.length);
+    if (errors.length) return;
+    const provider = await tx.provider.findUniqueOrThrow({ where: { id: d.providerId } });
+    const now = new Date();
     if (d.plans) await applyPlanProposals(tx, appId, d.plans, actorId);
     const plans = await tx.planVersion.findMany({ where: { appId, current: true } });
     const n = await tx.appRelease.count({ where: { appId } });
@@ -122,6 +132,7 @@ export async function publishApp(appId: string, actorId: string, action = "publi
     await tx.appRelease.create({ data: { appId, number: n + 1, snapshot: d as unknown as Prisma.InputJsonValue, publishedBy: actorId } });
     await audit(tx, { actorId, actorType: "operator", objectType: "app", objectId: appId, action, fromState: app.status, toState: "published", data: { release: n + 1 } });
   });
+  if (errors.length) return errors;
   invalidateCatalog();
   return [];
 }

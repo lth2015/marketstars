@@ -35,7 +35,17 @@ export function isSafeLaunchUrl(u: string): boolean {
 /** 认证回跳只允许站内相对路径。 */
 export function safeReturnTo(v: string | null | undefined): string {
   if (!v || !v.startsWith("/") || v.startsWith("//") || v.includes("\\")) return "/";
-  return v;
+  // URL パーサはタブ・改行を取り除くため「/<TAB>/evil.com」が「//evil.com」になる：制御文字・空白を含むものは拒否
+  if (/[\x00-\x20\x7f]/.test(v)) return "/";
+  // 同一オリジンに解決できることを確認し、パス・クエリ・ハッシュだけを返す
+  try {
+    const base = "http://return-to.invalid";
+    const u = new URL(v, base);
+    if (u.origin !== base) return "/";
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return "/";
+  }
 }
 
 /** 按当前语言显示套餐价格；`price` 传 `(await getMessages()).ui.price`。 */

@@ -26,3 +26,13 @@ describe("HTTP Basic（接入应用 client 认证）", () => {
     expect(parseBasic("Bearer abc")).toBeNull();
   });
 });
+
+import { safeReturnTo } from "@/lib/text";
+describe("returnTo（オープンリダイレクト防止）", () => {
+  it("タブ・改行・制御文字で外部へ抜ける形を拒否する", () => {
+    for (const v of ["/\t/evil.com", "/\n/evil.com", "/\r//evil.com", "/ /evil.com", "//evil.com", "/\\evil.com", "https://evil.com", "javascript:alert(1)", "/%0a/evil.com".replace("%0a", "\n")]) expect(safeReturnTo(v), JSON.stringify(v)).toBe("/");
+  });
+  it("サイト内のパス・クエリ・ハッシュはそのまま", () => {
+    for (const v of ["/apps?trial=true&sort=new", "/my/apps/abc#change", "/locale?set=en&returnTo=%2Fapps"]) expect(safeReturnTo(v)).toBe(v);
+  });
+});

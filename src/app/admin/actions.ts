@@ -77,15 +77,20 @@ export async function publishAction(fd: FormData) {
 export async function submissionDecisionAction(fd: FormData) {
   const op = await requireOperator();
   const id = str(fd, "id");
+  // 審査した提出と同じものか確認（取り下げ→編集→再提出があると submittedAt が変わる）
+  const seen = str(fd, "submittedAt");
+  const expect = seen ? new Date(seen) : null;
+  if (!expect || Number.isNaN(expect.getTime())) back("/admin/submissions", "error", "提出内容が変わっています。画面を更新して確認し直してください。");
   if (str(fd, "decision") === "approve") {
-    const errors = await publishApp(id, op.userId, "approve_submission");
+    const errors = await publishApp(id, op.userId, "approve_submission", { submittedAt: expect! });
     if (errors.length) back("/admin/submissions", "error", `公開できません：${errors.join("、")}`);
     await emitDeveloperEvent(id, "app.submission_approved");
     back("/admin/submissions", "msg", "承認して公開しました。");
   }
   const note = str(fd, "note");
   if (!note) back("/admin/submissions", "error", "差し戻し理由を入力してください。");
-  await prisma.app.update({ where: { id }, data: { reviewStatus: "rejected", reviewNote: note } });
+  const r = await prisma.app.updateMany({ where: { id, reviewStatus: "submitted", submittedAt: expect! }, data: { reviewStatus: "rejected", reviewNote: note } });
+  if (!r.count) back("/admin/submissions", "error", "提出内容が変わっています。画面を更新して確認し直してください。");
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "app", objectId: id, action: "reject_submission", reason: note });
   await emitDeveloperEvent(id, "app.submission_rejected", note);
   back("/admin/submissions", "msg", "差し戻しました。");
@@ -154,7 +159,8 @@ export async function retirePlanAction(fd: FormData) {
   const op = await requireOperator();
   const appId = str(fd, "appId");
   const id = str(fd, "planId");
-  await prisma.planVersion.update({ where: { id }, data: { current: false } });
+  const r = await prisma.planVersion.updateMany({ where: { id, appId }, data: { current: false } });
+  if (!r.count) back(`/admin/apps/${appId}`, "error", "プランが見つかりません。");
   const plans = await prisma.planVersion.findMany({ where: { appId, current: true } });
   await prisma.app.update({ where: { id: appId }, data: derivePricing(plans) });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "plan", objectId: id, action: "retire" });
@@ -274,6 +280,7 @@ export async function providerSaveAction(fd: FormData) {
   const op = await requireOperator();
   const id = str(fd, "id");
   const data = { name: str(fd, "name"), websiteUrl: str(fd, "websiteUrl") || null, supportUrl: str(fd, "supportUrl") || null, supportEmail: str(fd, "supportEmail") || null };
+  if ([data.websiteUrl, data.supportUrl].some((u) => u && !/^https:\/\/[^\s]+$/.test(u))) back("/admin/content", "error", "Web サイト・サポートの URL は https で入力してください。");
   if (!data.name) back("/admin/content", "error", "提供会社名は必須です。");
   const row = id ? await prisma.provider.update({ where: { id }, data }) : await prisma.provider.create({ data });
   await audit(prisma, { actorId: op.userId, actorType: "operator", objectType: "provider", objectId: row.id, action: id ? "update" : "create" });

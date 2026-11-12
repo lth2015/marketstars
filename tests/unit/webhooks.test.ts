@@ -37,3 +37,17 @@ describe("SSRF 防护", () => {
     srv.close();
   });
 });
+
+describe("SSRF：IPv6 リテラルと特殊な表記", () => {
+  it("角括弧付き・16 進の IPv4 埋め込み・NAT64 などを内部扱いにする", () => {
+    for (const ip of ["[::1]", "::ffff:7f00:1", "[::ffff:a9fe:a9fe]", "::127.0.0.1", "64:ff9b::a9fe:a9fe", "100::1", "2002:7f00:1::", "fc00::1", "febf::1", "ff02::1", "not-an-ip"]) expect(isPrivateAddress(ip), ip).toBe(true);
+    for (const ip of ["2606:4700:4700::1111", "[2001:4860:4860::8888]", "::ffff:8.8.8.8"]) expect(isPrivateAddress(ip), ip).toBe(false);
+  });
+  it("設定時に IPv6 リテラルの内部アドレスを拒否する", () => {
+    for (const u of ["https://[::1]/hook", "https://[::ffff:127.0.0.1]/hook", "https://[::ffff:a9fe:a9fe]/latest", "https://app.localhost/hook"]) expect(validateWebhookUrl(u), u).not.toBeNull();
+    expect(validateWebhookUrl("https://[2606:4700:4700::1111]/hook")).toBeNull();
+  });
+  it("接続時にも IP リテラルの内部アドレスへは送らない（lookup を通らない経路）", async () => {
+    await expect(postSigned("https://[::ffff:127.0.0.1]:1/x", "{}", {}, 2000)).rejects.toThrow(/blocked private address/);
+  });
+});
