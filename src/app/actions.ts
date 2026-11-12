@@ -119,8 +119,10 @@ export async function planChangeAction(fd: FormData) {
       await cancelPlanChange(s, id);
       target += `?msg=${encodeURIComponent((await fb()).changeCanceled)}`;
     } else {
-      const r = await changePlan(s, id, String(fd.get("planVersionId")), Number(fd.get("expectedPriceJpy")), fd.get("payment") === "invoice" ? "invoice" : "card");
+      const pay = fd.get("payment");
+      const r = await changePlan(s, id, String(fd.get("planVersionId")), Number(fd.get("expectedPriceJpy")), pay === "invoice" ? "invoice" : pay === "starpay" ? "starpay" : "card");
       if ("intentId" in r) target = `/pay/${r.intentId}`;
+      else if ("starpay" in r) target += `?msg=${encodeURIComponent((await fb()).changeStarpay)}`;
       else if ("scheduled" in r) target += `?msg=${encodeURIComponent((await fb()).changeScheduled)}`;
       else target += `?msg=${encodeURIComponent((await fb()).changeInvoice)}`;
     }
