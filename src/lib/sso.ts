@@ -50,7 +50,16 @@ export async function buildAuthorizeUrl(returnTo: string, opts: { forceConsent?:
   if (config.oidc.audience) u.searchParams.set("audience", config.oidc.audience);
   // 切换空间：重新走该空间授权（SSO 同意页逐次选择租户）
   if (opts.forceConsent) u.searchParams.set("prompt", "consent");
-  return u.toString();
+  return { url: u.toString(), state };
+}
+
+/** ログインを始めたブラウザに state を結び付ける Cookie（ログイン CSRF 対策：他人の認可コードで別アカウントにログインさせられない）。 */
+export const STATE_COOKIE = "ms_oidc_state";
+export function stateMatches(cookieValue: string | undefined, state: string) {
+  if (!cookieValue) return false;
+  const a = crypto.createHash("sha256").update(cookieValue).digest();
+  const b = crypto.createHash("sha256").update(state).digest();
+  return crypto.timingSafeEqual(a, b);
 }
 
 async function tokenRequest(body: Record<string, string>) {

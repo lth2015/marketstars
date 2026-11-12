@@ -87,6 +87,11 @@ export async function getSession(): Promise<SessionUser | null> {
     await prisma.session.deleteMany({ where: { id: s.id } });
     return null;
   }
+  // 現在の認証方式と異なるセッション（例：本番 OIDC で残っていたデモのセッション）は使わない
+  if (s.authMode !== config.authMode) {
+    await prisma.session.deleteMany({ where: { id: s.id } });
+    return null;
+  }
   if (s.authMode === "oidc" && Date.now() - s.lastVerifiedAt.getTime() > REVERIFY_MS) {
     const ok = await reverifySession(s);
     if (!ok) {

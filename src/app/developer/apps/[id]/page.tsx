@@ -78,7 +78,7 @@ export default async function DevApp({ params, searchParams }: { params: Promise
                 ))}
               </div>
             </div>
-            <details><summary className="small">署名シークレットを表示</summary><code className="small" style={{ wordBreak: "break-all" }}>{webhookSecret(e.id)}</code></details>
+            {s.isOwner && <details><summary className="small">署名シークレットを表示</summary><code className="small" style={{ wordBreak: "break-all" }}>{webhookSecret(e.id)}</code></details>}
             {e.deliveries.length > 0 && (
               <div className="table-wrap"><table className="table"><thead><tr><th>日時</th><th>イベント</th><th>結果</th><th>試行</th><th></th></tr></thead><tbody>
                 {e.deliveries.map((d) => (

@@ -20,6 +20,8 @@ async function owner() {
   return s;
 }
 
+const httpsOrEmpty = (u: string) => !u || /^https:\/\/[^\s]+$/.test(u);
+
 export async function registerDeveloperAction(fd: FormData) {
   const s = await owner();
   if (await getDeveloper(s)) redirect("/developer");
@@ -27,6 +29,7 @@ export async function registerDeveloperAction(fd: FormData) {
   const email = str(fd, "contactEmail");
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) go("/developer", "error", "提供会社名と連絡先メールアドレスを入力してください。");
   if (fd.get("agree") !== "on") go("/developer", "error", "開発者規約への同意が必要です。");
+  if (!httpsOrEmpty(str(fd, "websiteUrl"))) go("/developer", "error", "Web サイトは https の URL を入力してください。");
   const p = await prisma.provider.create({ data: { name, contactEmail: email, supportEmail: str(fd, "supportEmail") || email, websiteUrl: str(fd, "websiteUrl") || null, ownerTenantId: s.tenantId!, developerTermsVersion: "2026-11-01" } });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "provider", objectId: p.id, action: "developer_register" });
   go("/developer", "msg", "開発者登録が完了しました。アプリを作成して審査に提出できます。");
@@ -36,6 +39,7 @@ export async function updateProviderAction(fd: FormData) {
   const s = await owner();
   const p = await getDeveloper(s);
   if (!p) redirect("/developer");
+  if (!httpsOrEmpty(str(fd, "websiteUrl"))) go("/developer", "error", "Web サイトは https の URL を入力してください。");
   await prisma.provider.update({ where: { id: p.id }, data: { name: str(fd, "name") || p.name, contactEmail: str(fd, "contactEmail") || p.contactEmail, supportEmail: str(fd, "supportEmail") || null, websiteUrl: str(fd, "websiteUrl") || null } });
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "provider", objectId: p.id, action: "developer_update" });
   go("/developer", "msg", "提供会社情報を更新しました（公開中アプリの表示にも反映されます）。");

@@ -171,6 +171,16 @@ try {
     const r = await fetch(`${SSO}/oauth2/auth?client_id=marketstars-local&redirect_uri=${encodeURIComponent("https://evil.example/cb")}&response_type=code&code_challenge=x&code_challenge_method=S256&state=s`);
     assert.equal(r.status, 400);
   });
+  await step("O13 login CSRF: a callback for a login started in another browser is rejected (state is bound to a cookie)", async () => {
+    // 攻撃者がログインを開始して得た state（とコード）を、被害者のブラウザで開かせる
+    const r = await fetch(`${MS}/auth/start?returnTo=/my/apps`, { redirect: "manual" });
+    const state = new URL(r.headers.get("location")).searchParams.get("state");
+    assert.ok(state && /ms_oidc_state=/.test(r.headers.get("set-cookie") ?? ""));
+    await page.goto(`${MS}/auth/callback?state=${state}&code=attacker-code`);
+    await page.waitForURL(/\/auth\/login\?error=callback/);
+    // state はこのブラウザでは使われていない（コードの交換に進んでいない）
+    assert.equal(sql(`SELECT COUNT(*) FROM AuthState WHERE id='${state}'`).trim(), "1");
+  });
   await step("O12 demo guide and demo reset do not exist in OIDC mode", async () => {
     assert.equal((await fetch(`${MS}/demo`)).status, 404);
     assert.equal((await fetch(`${MS}/demo/reset`, { method: "POST", body: new URLSearchParams({ confirm: "on" }) })).status, 404);

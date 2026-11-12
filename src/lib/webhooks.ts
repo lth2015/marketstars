@@ -27,15 +27,49 @@ export function verifySignature(secret: string, body: string, header: string, to
 
 const allowPrivate = () => process.env.WEBHOOK_ALLOW_PRIVATE === "true";
 
-export function isPrivateAddress(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
-  }
-  const v = ip.toLowerCase();
-  if (v.startsWith("::ffff:")) return isPrivateAddress(v.slice(7));
-  return v === "::" || v === "::1" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe8") || v.startsWith("fe9") || v.startsWith("fea") || v.startsWith("feb") || v.startsWith("ff");
+function privateV4(ip: string) {
+  const [a, b] = ip.split(".").map(Number);
+  return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
 }
+
+/** IPv6 を 8 つの 16bit 値に展開（:: の省略と末尾の IPv4 表記に対応）。 */
+function v6Words(ip: string): number[] | null {
+  let v = ip.toLowerCase().split("%")[0];
+  const m = v.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (m) {
+    if (!net.isIPv4(m[2])) return null;
+    const [a, b, c, d] = m[2].split(".").map(Number);
+    v = `${m[1]}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = v.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail !== undefined ? (tail ? tail.split(":") : []) : [];
+  const words = tail !== undefined ? [...h, ...Array(8 - h.length - t.length).fill("0"), ...t] : h;
+  if (words.length !== 8) return null;
+  const n = words.map((w) => parseInt(w || "0", 16));
+  return n.some((x) => Number.isNaN(x) || x < 0 || x > 0xffff) ? null : n;
+}
+
+export function isPrivateAddress(raw: string): boolean {
+  const ip = raw.replace(/^\[|\]$/g, "");
+  if (net.isIPv4(ip)) return privateV4(ip);
+  const w = v6Words(ip);
+  if (!w) return true; // 解析できないアドレスは安全側に倒す
+  const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  const zero = (n: number) => w.slice(0, n).every((x) => x === 0);
+  if (zero(8) || (zero(7) && w[7] === 1)) return true; // :: / ::1
+  if (zero(5) && w[5] === 0xffff) return privateV4(v4(w[6], w[7])); // ::ffff:a.b.c.d（16 進表記も含む）
+  if (zero(6)) return privateV4(v4(w[6], w[7])); // IPv4 互換 ::a.b.c.d
+  if (w[0] === 0x64 && w[1] === 0xff9b) return true; // NAT64 64:ff9b::/96
+  if (w[0] === 0x100 && w[1] === 0 && w[2] === 0 && w[3] === 0) return true; // 破棄用 100::/64
+  if (w[0] === 0x2001 && w[1] === 0xdb8) return true; // ドキュメント用
+  if (w[0] === 0x2002) return true; // 6to4（内部の IPv4 を包める）
+  const top = w[0] >> 8;
+  return (w[0] & 0xfe00) === 0xfc00 || (w[0] & 0xffc0) === 0xfe80 || top === 0xff; // ULA / リンクローカル / マルチキャスト
+}
+
+/** URL のホスト名から角括弧を外す（WHATWG URL は IPv6 リテラルを [..] のまま返す）。 */
+const bareHost = (u: URL) => u.hostname.replace(/^\[|\]$/g, "");
 
 /** 配置时的 URL 校验（连接时还会再按解析结果校验）。 */
 export function validateWebhookUrl(raw: string): string | null {
@@ -43,7 +77,8 @@ export function validateWebhookUrl(raw: string): string | null {
   try { u = new URL(raw); } catch { return "URL の形式が正しくありません。"; }
   if (u.username || u.password) return "URL に認証情報を含めないでください。";
   if (u.protocol !== "https:" && !(allowPrivate() && u.protocol === "http:")) return "https の URL を指定してください。";
-  if (!allowPrivate() && (u.hostname === "localhost" || (net.isIP(u.hostname) && isPrivateAddress(u.hostname)))) return "社内・ローカルのアドレスは指定できません。";
+  const host = bareHost(u);
+  if (!allowPrivate() && (host === "localhost" || host.endsWith(".localhost") || (net.isIP(host) && isPrivateAddress(host)))) return "社内・ローカルのアドレスは指定できません。";
   return null;
 }
 
@@ -63,6 +98,9 @@ const guardedLookup: net.LookupFunction = (hostname, options, cb) => {
 export function postSigned(url: string, body: string, headers: Record<string, string>, timeoutMs = 10000): Promise<{ status: number; snippet: string }> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
+    // IP リテラルのホストでは lookup が呼ばれないため、接続前にここで確認する
+    const host = bareHost(u);
+    if (net.isIP(host) && isPrivateAddress(host) && !allowPrivate()) return reject(new Error(`blocked private address ${host}`));
     const mod = u.protocol === "https:" ? https : http;
     const req = mod.request(u, { method: "POST", headers: { "content-type": "application/json", "user-agent": "MarketStars-Webhooks/1.0", "content-length": Buffer.byteLength(body).toString(), ...headers }, lookup: guardedLookup, timeout: timeoutMs }, (res) => {
       let data = "";
@@ -87,6 +125,7 @@ export function webhookBody(ev: { id: string; type: string; createdAt: Date; pay
 export async function deliverOne(deliveryId: string) {
   const d = await prisma.webhookDelivery.findUniqueOrThrow({ where: { id: deliveryId }, include: { endpoint: true, event: true } });
   if (d.status === "succeeded" || d.status === "dead") return d.status;
+  if (!d.endpoint.enabled) return d.status; // 無効化された送信先には送らない
   const body = webhookBody(d.event);
   const attempts = d.attempts + 1;
   let ok = false, status: number | null = null, error: string | null = null;

@@ -29,8 +29,8 @@ export default async function Submissions({ searchParams }: { searchParams: Prom
               <dt>規約 / プライバシー</dt><dd>{d?.termsUrl ?? "—"} / {d?.privacyUrl ?? "—"}</dd>
             </dl>
             <div className="row">
-              <form action={submissionDecisionAction}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="decision" value="approve" /><button className="btn btn-primary btn-sm">承認して公開</button></form>
-              <form action={submissionDecisionAction} className="row"><input type="hidden" name="id" value={a.id} /><input type="hidden" name="decision" value="reject" /><input name="note" placeholder="差し戻し理由（開発者に表示）" required style={{ height: 34, minWidth: 260, border: "1px solid var(--border)", borderRadius: 8, padding: "0 8px" }} /><button className="btn btn-danger btn-sm">差し戻す</button></form>
+              <form action={submissionDecisionAction}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="submittedAt" value={a.submittedAt?.toISOString() ?? ""} /><input type="hidden" name="decision" value="approve" /><button className="btn btn-primary btn-sm">承認して公開</button></form>
+              <form action={submissionDecisionAction} className="row"><input type="hidden" name="id" value={a.id} /><input type="hidden" name="submittedAt" value={a.submittedAt?.toISOString() ?? ""} /><input type="hidden" name="decision" value="reject" /><input name="note" placeholder="差し戻し理由（開発者に表示）" required style={{ height: 34, minWidth: 260, border: "1px solid var(--border)", borderRadius: 8, padding: "0 8px" }} /><button className="btn btn-danger btn-sm">差し戻す</button></form>
             </div>
           </div>
         );
