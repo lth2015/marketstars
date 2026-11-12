@@ -3,7 +3,7 @@ import { getSession, isOperator } from "@/lib/session";
 import { audit } from "@/lib/audit";
 
 const esc = (v: unknown) => {
-  const s = v === null || v === undefined ? "" : v instanceof Date ? v.toISOString() : String(v);
+  const s = (v === null || v === undefined ? "" : v instanceof Date ? v.toISOString() : String(v)).replace(/[\r\n]+/g, " ");
   // CSV 注入防护：以 = + - @ 开头的值加前缀
   const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
