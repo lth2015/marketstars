@@ -30,7 +30,7 @@ curl -X POST -H "Authorization: Bearer local-job-token" localhost:3000/api/inter
 | 開発 次郎 | ミライAI合同会社（owner） | `/developer` 开发者提交审核 |
 | 運営 太郎 | MarketStars 運営（运营空间 + OperatorGrant） | `/admin` 运营后台 |
 
-**演示向导 `/demo`**（页面顶部横幅里的「デモガイド」，仅 demo 模式）：沿功能主线列出 9 个场景（免费体验 → 打开应用用 AI 生成文案、银行卡开通、请求书支付与运营确认收款、契约管理、权限与空间隔离、开发者提交与审核、运营 KPI 与台帐、AgentPay、英文界面）。每一步的「開く」按钮会以指定的身份和空间重新登录并打开对应页面。页面底部可以把演示数据**一键恢复到初始状态**（等同于重新 `npm run db:seed` 并重算排行；所有人会被登出）。
+**演示向导 `/demo`**（页面顶部横幅里的「デモガイド」，仅 demo 模式）：沿功能主线列出 10 个场景（免费体验 → 打开应用用 AI 生成文案、第 2 款接入应用「クチコミ返信アシスタント」、银行卡开通、请求书支付与运营确认收款、契约管理、权限与空间隔离、开发者提交与审核、运营 KPI 与台帐、AgentPay、英文界面）。每一步的「開く」按钮会以指定的身份和空间重新登录并打开对应页面。两款接入应用（`/integrations/pop-writer`、`/integrations/review-reply`）共用 `src/lib/integration-demo.ts`：只通过一次性启动码兑换、每次使用前的权益检查和模型网关与市场交互。未配置模型 API key 时，网关的 mock 会按用途（POP 文案 / 口碑回复）返回确定性的示例输出。页面底部可以把演示数据**一键恢复到初始状态**（等同于重新 `npm run db:seed` 并重算排行；所有人会被登出）。
 
 接入公共 SSO：设置 `AUTH_MODE=oidc` 及 `OIDC_*`、`SSO_*` 变量，见 [docs/sso-integration.md](docs/sso-integration.md)；本地与真实 SSO 联调见 [docs/local-sso-integration.md](docs/local-sso-integration.md)。
 

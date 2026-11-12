@@ -114,6 +114,29 @@ try {
     assert.ok(Number(sql("SELECT COUNT(*) FROM PayoutStatement")) > 0);
   });
 
+  await step("G8 second integrated app: open クチコミ返信アシスタント from My apps, draft replies with template and AI, usage is metered", async () => {
+    await page.goto(`${BASE}/demo`);
+    await open("review", 0);
+    await page.waitForURL(/\/my\/apps$/);
+    await page.locator(".panel", { hasText: "クチコミ返信アシスタント" }).getByRole("link", { name: "アプリを開く" }).click();
+    await page.waitForURL(/integrations\/review-reply$/);
+    await see(page.getByText("山田 花子 ・ ひかり整骨院"));
+    await page.fill("#review", "施術は良かったけど、予約の時間からかなり待たされました");
+    await page.selectOption("#rating", "2");
+    await page.getByLabel(/AI モデルでも返信案を作る/).check();
+    await page.getByRole("button", { name: "返信案を作る" }).click();
+    await page.waitForURL(/review=/);
+    await see(page.locator(".panel", { hasText: "返信案 1" }).filter({ hasText: "お待たせしてしまい" }));
+    await see(page.getByText(/AI 返信案（\d+ tokens/));
+    const usage = Number(sql(`SELECT COUNT(*) FROM UsageEvent u JOIN Subscription s ON s.id = u.subscriptionId JOIN App a ON a.id = s.appId WHERE a.slug = 'review-reply' AND s.tenantId = 'demo-tenant-hikari'`));
+    assert.ok(usage >= 1, "gateway call is metered to the space");
+    // 起動コードなし・偽の起動コードでは新しいセッションは作られない
+    await page.goto(`${BASE}/integrations/review-reply/start`);
+    await page.waitForURL(/review-reply\?e=launch$/);
+    await page.goto(`${BASE}/integrations/review-reply/start?ms_launch=forged-code`);
+    await page.waitForURL(/review-reply\?e=denied$/);
+  });
+
   await step("G6 the guide and reset do not exist outside demo mode (robots also excludes /demo)", async () => {
     const robots = await (await fetch(`${BASE}/robots.txt`)).text();
     assert.match(robots, /Disallow: \/demo/);

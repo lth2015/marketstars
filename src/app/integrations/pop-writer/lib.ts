@@ -1,46 +1,17 @@
 // 示范接入应用「AI POPメーカー」。逻辑上视为独立应用：只通过 MarketStars 公开的
 // 服务端 API（launch/exchange、entitlements/check）和自身 client secret 与市场交互。
-import crypto from "node:crypto";
-import { cookies } from "next/headers";
-import { config } from "@/lib/config";
-import { MarketStarsClient } from "@/sdk/marketstars";
+import { integrationApp, type AppSession } from "@/lib/integration-demo";
 
 export const CLIENT_ID = "pop-writer";
-const COOKIE = "popw_session";
-const secret = () => config.launchSecret(CLIENT_ID);
+const app = integrationApp(CLIENT_ID);
 
-export type PopSession = { u: string; n: string; t: string; tn: string; exp: number };
-
-export function marketstars() {
-  return new MarketStarsClient({ baseUrl: config.baseUrl, clientId: CLIENT_ID, clientSecret: secret() });
-}
-
-function sign(v: string) {
-  return crypto.createHmac("sha256", secret()).update(v).digest("base64url");
-}
-
-export async function setPopSession(s: PopSession) {
-  const v = Buffer.from(JSON.stringify(s)).toString("base64url");
-  (await cookies()).set(COOKIE, `${v}.${sign(v)}`, { httpOnly: true, sameSite: "lax", path: "/integrations/pop-writer", secure: config.baseUrl.startsWith("https://"), maxAge: 3600 });
-}
-
-export async function getPopSession(): Promise<PopSession | null> {
-  const raw = (await cookies()).get(COOKIE)?.value;
-  if (!raw || !secret()) return null;
-  const [v, sig] = raw.split(".");
-  if (!v || !sig || sign(v) !== sig) return null;
-  const s = JSON.parse(Buffer.from(v, "base64url").toString()) as PopSession;
-  return s.exp > Date.now() ? s : null;
-}
-
+export type PopSession = AppSession;
+export const marketstars = app.marketstars;
+export const setPopSession = (s: PopSession) => app.setSession(s);
+export const getPopSession = () => app.getSession();
 /** 每次使用前向 MarketStars 复查权益，不能绕过市场直接获得付费能力。 */
-export async function checkEntitlement(tenantId: string) {
-  try {
-    return await marketstars().checkEntitlement(tenantId);
-  } catch {
-    return { entitled: false, plan_key: null as string | null, status: "error", kind: null, expires_at: null };
-  }
-}
+export const checkEntitlement = (tenantId: string) => app.checkEntitlement(tenantId);
+export const startPop = (code: string | null) => app.start(code);
 
 const TONES: Record<string, string[]> = {
   friendly: ["今日のおすすめ！", "みんなに食べてほしい", "ほっとする"],
