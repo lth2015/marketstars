@@ -90,6 +90,12 @@ const ja = {
     },
     loading: "読み込み中",
     errors: { notFound: "ページが見つかりません", notFoundBody: "URL が変更されたか、公開が終了した可能性があります。", toApps: "アプリ一覧へ" },
+    integrations: {
+      openFromMarket: "このアプリは MarketStars の「アプリを開く」から起動してください。", denied: "この空間には利用権限がありません。MarketStars でお申し込み状況をご確認ください。", toMyApps: "MarketStars マイアプリへ",
+      ended: (st: string) => `利用期間が終了したか、利用権限がありません（状態：${st}）。`, checkMarket: "MarketStars で確認する", aiFailed: "AI 生成に失敗しました", trialBadge: "無料体験中",
+      pop: { title: "AI POPメーカー", product: "商品名", productPh: "例：北海道バターのクロワッサン", features: "特徴（読点区切り）", featuresPh: "例：サクサク、焼きたて、朝7時から", tone: "トーン", tones: { friendly: "親しみやすく", premium: "上質に", urgent: "限定感を出す" }, ai: "AI モデルでも提案する（MarketStars モデルゲートウェイ・トークン従量課金）", make: (n: number) => `${n}パターン作成する`, aiResult: (c: string) => `AI 提案（${c}）`, note: "※ デモ版はテンプレートベースで生成しています。出力は公開前にご確認ください。", planFree: "フリー", planStd: "スタンダード" },
+      review: { title: "クチコミ返信アシスタント", review: "クチコミ本文", reviewPh: "例：料理は美味しかったけど、少し待ち時間が長かったです。", rating: "評価", tone: "トーン", tones: { polite: "丁寧に", friendly: "親しみやすく", brief: "簡潔に" }, store: "署名に使う店舗名", ai: "AI モデルでも返信案を作る（MarketStars モデルゲートウェイ・トークン従量課金）", make: "返信案を作る", aiResult: (c: string) => `AI 返信案（${c}）`, draft: (n: number) => `返信案 ${n}`, note: "※ デモ版はテンプレートベースで作成しています。投稿前に内容をご確認ください。" },
+    },
     feedback: {
       tooMany: "操作が多すぎます。しばらくしてから再度お試しください。", tooManySends: (min: number) => `送信回数が多すぎます。${min} 分ほど待ってから再度お試しください。`,
       required: "必須項目を入力してください。", badEmail: "メールアドレスの形式が正しくありません。", tooLong: "お問い合わせ内容は4,000文字以内で入力してください。",
@@ -235,6 +241,12 @@ const en: Messages = {
     },
     loading: "Loading",
     errors: { notFound: "Page not found", notFoundBody: "The URL may have changed, or the page is no longer published.", toApps: "Browse apps" },
+    integrations: {
+      openFromMarket: "Please launch this app with \"Open app\" in MarketStars.", denied: "This space is not entitled to this app. Check your application in MarketStars.", toMyApps: "Go to My apps in MarketStars",
+      ended: (st: string) => `Your access has ended or this space is not entitled (status: ${st}). `, checkMarket: "Check in MarketStars", aiFailed: "AI generation failed", trialBadge: "Free trial",
+      pop: { title: "AI POP Maker", product: "Product", productPh: "e.g. Hokkaido butter croissant", features: "Features (comma-separated)", featuresPh: "e.g. flaky, freshly baked, from 7am", tone: "Tone", tones: { friendly: "Friendly", premium: "Premium", urgent: "Limited-time" }, ai: "Also suggest with an AI model (MarketStars model gateway, billed per token)", make: (n: number) => `Create ${n} options`, aiResult: (c: string) => `AI suggestion (${c})`, note: "Demo version: copy is generated from templates. Please review before publishing.", planFree: "Free", planStd: "Standard" },
+      review: { title: "Review Reply Assistant", review: "Review text", reviewPh: "e.g. The food was great, but we waited quite a while.", rating: "Rating", tone: "Tone", tones: { polite: "Polite", friendly: "Friendly", brief: "Brief" }, store: "Store name for the signature", ai: "Also draft with an AI model (MarketStars model gateway, billed per token)", make: "Draft replies", aiResult: (c: string) => `AI draft (${c})`, draft: (n: number) => `Draft ${n}`, note: "Demo version: replies are generated from templates. Please review before posting." },
+    },
     feedback: {
       tooMany: "Too many attempts. Please wait a moment and try again.", tooManySends: (min: number) => `Too many submissions. Please wait about ${min} minutes and try again.`,
       required: "Please fill in the required fields.", badEmail: "The email address is not valid.", tooLong: "Please keep your message within 4,000 characters.",

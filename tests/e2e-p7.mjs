@@ -93,6 +93,22 @@ try {
     await see(page.getByRole("heading", { name: "Page not found" }));
     await page.goto(`${BASE}/my/apps`);
   });
+  await step("I6 the integrated app follows the language: English labels, English template copy and English AI output", async () => {
+    await page.goto(`${BASE}/my/apps`);
+    await page.getByRole("link", { name: "Open app" }).first().click();
+    await page.waitForURL(/integrations\/pop-writer$/);
+    await see(page.getByRole("heading", { name: "AI POP Maker" }));
+    await page.getByLabel("Product").fill("Butter croissant");
+    await page.getByLabel("Features (comma-separated)").fill("flaky, fresh");
+    await page.getByLabel(/Also suggest with an AI model/).check();
+    await page.getByRole("button", { name: /Create \d options/ }).click();
+    await page.waitForURL(/product=/);
+    await see(page.getByText(/AI suggestion \(\d+ tokens/));
+    await see(page.getByText(/Staff pick: Butter croissant/));
+    const text = await page.locator("main").innerText();
+    assert.ok(!/パターン|AI提案|商品名/.test(text), "no Japanese UI or output in English mode");
+    await page.goto(`${BASE}/my/apps`);
+  });
   await step("I4 switching back to Japanese", async () => {
     await page.getByRole("link", { name: /日本語/ }).click();
     await page.waitForURL(/\/my\/apps$/);
