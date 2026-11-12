@@ -119,6 +119,40 @@ try {
     await page.waitForURL(/error=/);
     await see(page.getByText(/StarPay 合算で利用中の契約（\d+件）/));
   });
+  await step("SP7 a free trial converts to the paid plan via StarPay right away (A07 path), first bill due", async () => {
+    await login("山田 花子", "ひかり整骨院（オーナー）", "/my/apps");
+    await page.locator(".panel", { hasText: "シフト作成AI" }).getByRole("link", { name: /契約内容/ }).click();
+    await page.waitForURL(/\/my\/apps\/[^/?]+$/);
+    const id = page.url().split("/my/apps/")[1];
+    const card = page.locator(".plan-card", { hasText: "チーム" });
+    await card.getByLabel("StarPay 利用料と合算（すぐに切り替え）").check();
+    await card.getByRole("button", { name: "このプランに切り替える" }).click();
+    await see(page.getByText("有料プランに切り替えました"));
+    assert.equal(sql(`SELECT CONCAT(status, '/', kind, '/', paymentMode, '/', autoRenew, '/', IFNULL(scheduledPlanVersionId,'-')) FROM Subscription WHERE id='${id}'`), "active/paid/starpay/1/-");
+    assert.equal(sql(`SELECT CONCAT(channel, '/', status) FROM BillingRecord WHERE subscriptionId='${id}'`), "starpay/due");
+  });
+
+  await step("SP8 a free plan upgrades via StarPay; without a link the option is absent", async () => {
+    await login("山田 花子", "みなと美容室（オーナー）", "/apps/event-planner/apply");
+    await page.locator(".plan-card", { hasText: "フリー" }).getByRole("link", { name: "無料で利用開始" }).click();
+    await page.getByLabel("MarketStars 利用規約に同意します").check();
+    await page.getByLabel("提供会社の利用規約・プライバシーポリシーに同意します").check();
+    await page.getByRole("button", { name: "無料で利用開始" }).click();
+    await page.waitForURL(/\/my\/apps\/.+done=1/);
+    const id = page.url().split("/my/apps/")[1].split("?")[0];
+    await page.goto(`${BASE}/my/apps/${id}`);
+    assert.equal(await page.getByLabel("StarPay 利用料と合算（すぐに切り替え）").count(), 0);
+    await page.goto(`${BASE}/my/billing`);
+    await page.fill("#merchantId", "SP12345678");
+    await page.getByRole("button", { name: "連携する" }).click();
+    await see(page.getByText("連携中："));
+    await page.goto(`${BASE}/my/apps/${id}`);
+    const card = page.locator(".plan-card", { hasText: "プラス" });
+    await card.getByLabel("StarPay 利用料と合算（すぐに切り替え）").check();
+    await card.getByRole("button", { name: "このプランに切り替える" }).click();
+    await see(page.getByText("有料プランに切り替えました"));
+    assert.equal(sql(`SELECT CONCAT(kind, '/', paymentMode, '/', planNameSnapshot) FROM Subscription WHERE id='${id}'`), "paid/starpay/プラス");
+  });
 } finally {
   await browser.close();
 }

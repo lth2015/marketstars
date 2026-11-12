@@ -10,6 +10,7 @@ import { autoRenewAction, planChangeAction, subscriptionAction, usageCapAction }
 import { jstMonth, monthUsage } from "@/lib/usage";
 import { localizedPrice } from "@/lib/text";
 import { getMessages } from "@/lib/messages";
+import { getLink } from "@/lib/starpay";
 
 export async function generateMetadata() {
   return { title: (await getMessages()).ui.contract.title };
@@ -31,6 +32,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
   const usage = await monthUsage(sub.id, usageMonth);
   const unitPrice = (await prisma.planVersion.findUniqueOrThrow({ where: { id: sub.planVersionId } })).tokenPriceJpyPerMTok;
   const ok = isEntitled(sub);
+  const starpay = s.isOwner ? await getLink(sub.tenantId) : null;
   const Action = ({ op, label, confirm, variant = "btn-secondary" }: { op: string; label: string; confirm: string; variant?: string }) => (
     <form action={subscriptionAction} className="panel stack" style={{ background: "#FBFCFD" }}>
       <input type="hidden" name="id" value={sub.id} />
@@ -131,10 +133,11 @@ export default async function ContractPage({ params, searchParams }: { params: P
                       <h3 style={{ margin: 0 }}>{p.name}</h3>
                       <div className="price">{priceLabel(p)}</div>
                       <p className="small muted" style={{ whiteSpace: "pre-line", margin: 0 }}>{p.includes}</p>
-                      {sub.status === "trialing" && (
+                      {(sub.status === "trialing" || (sub.kind === "free" && starpay)) && (
                         <div className="small">
                           <label className="check"><input type="radio" name="payment" value="card" defaultChecked /> {C.cardNow}</label>
-                          <label className="check"><input type="radio" name="payment" value="invoice" /> {C.invoice}</label>
+                          {starpay && <label className="check"><input type="radio" name="payment" value="starpay" /> {C.starpayNow}</label>}
+                          {sub.status === "trialing" && <label className="check"><input type="radio" name="payment" value="invoice" /> {C.invoice}</label>}
                         </div>
                       )}
                       <button className="btn btn-secondary btn-sm">{sub.kind === "paid" ? C.nextPeriodPlan : C.switchPlan}</button>

@@ -348,7 +348,7 @@ async function createIntent(tx: Tx, sub: Subscription, purpose: string, plan: { 
  * - 免费 → 付费：在线支付成功后立即生效（返回 intent）。
  * - 试用 → 付费：在线支付立即开始，或请求书払い等待运营确认（体验期间内）。
  */
-export async function changePlan(s: SessionUser, id: string, planVersionId: string, expectedPriceJpy: number, payment: "card" | "invoice") {
+export async function changePlan(s: SessionUser, id: string, planVersionId: string, expectedPriceJpy: number, payment: "card" | "invoice" | "starpay") {
   const sub = await ownerSub(s, id);
   const app = await prisma.app.findUniqueOrThrow({ where: { id: sub.appId } });
   if (!app.acceptingNew && sub.status !== "active") throw new BizError("closed", "新規受付を停止しています。");
@@ -363,6 +363,14 @@ export async function changePlan(s: SessionUser, id: string, planVersionId: stri
     return { scheduled: true as const };
   }
   if (plan.priceType !== "monthly") throw new BizError("state", "このプランには変更できません。");
+  // StarPay 合算：無料体験・無料プランから、その場で有料プランへ切り替える（請求は合算請求待ち）
+  if (payment === "starpay" && (sub.status === "trialing" || (sub.status === "active" && sub.kind === "free"))) {
+    if (!(await prisma.starpayLink.findUnique({ where: { tenantId: sub.tenantId } }))) throw new BizError("no_starpay", "この空間は StarPay と連携していません。請求・お支払いで加盟店番号を連携してください。");
+    const trial = sub.status === "trialing";
+    await prisma.$transaction((tx) => grantPaidPeriod(tx, sub, { start: new Date(), planVersionId: plan.id, planName: plan.name, amountJpy: plan.priceJpy, receiptRef: null, actorId: s.userId, actorType: "user", action: trial ? "starpay_convert_trial" : "starpay_upgrade", autoRenew: true, paymentMode: "starpay", paymentMethodId: null, starpay: true }));
+    await prisma.paymentIntent.updateMany({ where: { subscriptionId: id, status: { in: ["requires_payment", "failed"] }, purpose: { in: ["convert_trial", "upgrade"] } }, data: { status: "canceled" } });
+    return { starpay: true as const };
+  }
   if (sub.status === "active" && sub.kind === "free") {
     if (payment !== "card") throw new BizError("card_only", "無料プランからの変更はカード払いのみ対応しています。請求書払いはお問い合わせください。");
     const intent = await prisma.$transaction((tx) => createIntent(tx, sub, "upgrade", plan, s.userId));
