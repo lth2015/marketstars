@@ -518,6 +518,32 @@ export async function settleIntent(intentId: string, chargeId: string, a: { acto
   }
 }
 
+/**
+ * 定时任务：课金请求中途中断（进程崩溃等）而停在 processing 的决済を回復する。
+ * 决済服务按 idempotencyKey 幂等：用相同的键再请求一次，得到的就是当时的结果（不会重复扣款）。
+ */
+export async function recoverStuckIntents(now = new Date(), staleMinutes = 15) {
+  const stuck = await prisma.paymentIntent.findMany({ where: { status: "processing", updatedAt: { lt: new Date(now.getTime() - staleMinutes * 60000) } }, include: { paymentMethod: true } });
+  const out = { settled: 0, failed: 0 };
+  for (const intent of stuck) {
+    if (!intent.paymentMethod) {
+      await prisma.paymentIntent.updateMany({ where: { id: intent.id, status: "processing" }, data: { status: "failed", failureReason: "決済の処理が中断されました（支払い方法なし）" } });
+      out.failed++;
+      continue;
+    }
+    const res = await paymentProvider().charge(intent.paymentMethod.providerRef, intent.amountJpy, `${intent.id}:${intent.attempts}`);
+    if (res.ok) {
+      try { await settleIntent(intent.id, res.chargeId, { actorId: "system", actorType: "system" }); out.settled++; }
+      catch (e) { if (!(e instanceof BizError)) throw e; out.failed++; }
+    } else {
+      await prisma.paymentIntent.updateMany({ where: { id: intent.id, status: "processing" }, data: { status: "failed", failureReason: res.message } });
+      out.failed++;
+    }
+    await audit(prisma, { actorId: "system", actorType: "system", tenantId: intent.tenantId, objectType: "payment_intent", objectId: intent.id, action: "recover_stuck", toState: res.ok ? "charged" : "failed" });
+  }
+  return out;
+}
+
 /** 定时任务：期末降级为免费套餐。 */
 export async function applyScheduledDowngrades(now = new Date()) {
   const due = await prisma.subscription.findMany({ where: { status: "active", kind: "paid", currentPeriodEnd: { lte: now }, scheduledPlan: { priceType: "free" } }, include: { scheduledPlan: true } });
