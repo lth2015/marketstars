@@ -30,7 +30,8 @@ export async function POST(req: Request) {
       throw e;
     }
   } else if (ev.type === "charge.failed") {
-    await prisma.paymentIntent.updateMany({ where: { id: intent.id, status: { not: "succeeded" } }, data: { status: "failed", failureReason: ev.reason ?? "failed" } });
+    // 処理中（課金リクエスト中）・完了・取消済みの決済は変えない：処理中を failed に戻すと再課金で二重請求になり得る
+    await prisma.paymentIntent.updateMany({ where: { id: intent.id, status: "requires_payment" }, data: { status: "failed", failureReason: ev.reason ?? "failed" } });
     await audit(prisma, { actorId: "payment-webhook", actorType: "system", tenantId: intent.tenantId, objectType: "payment_intent", objectId: intent.id, action: "charge_failed", reason: ev.reason ?? null });
   }
   return Response.json({ received: true });

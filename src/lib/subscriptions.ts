@@ -179,12 +179,15 @@ async function transition(
   actor: { id: string; type: "user" | "operator" | "system" },
   action: string,
   reason?: string,
+  extraWhere: Prisma.SubscriptionWhereInput = {},
 ) {
   return prisma.$transaction(async (tx) => {
     // 条件更新实现乐观并发：状态已被其他请求改变则不重复执行
-    const r = await tx.subscription.updateMany({ where: { id: sub.id, status: { in: from } }, data: data as Prisma.SubscriptionUpdateManyMutationInput });
+    const r = await tx.subscription.updateMany({ where: { ...extraWhere, id: sub.id, status: { in: from } }, data: data as Prisma.SubscriptionUpdateManyMutationInput });
     if (r.count === 0) throw new BizError("state", "状態が変更されています。画面を更新してください。");
     const after = await tx.subscription.findUniqueOrThrow({ where: { id: sub.id } });
+    // 契約が終わったら、未払いのカード決済は取り消す（後から支払われて請求だけ発生するのを防ぐ）
+    if (!after.liveKey) await cancelOpenIntents(tx, sub.id);
     await audit(tx, { actorId: actor.id, actorType: actor.type, tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action, fromState: sub.status, toState: after.status, reason });
     const ev = ACTION_EVENTS[action];
     if (ev) await emitSubscriptionEvent(tx, typeof ev === "function" ? ev(after.status) : ev, sub.id, { reason: reason ?? null });
@@ -193,6 +196,22 @@ async function transition(
 }
 
 const ended = (status: string) => ({ status, liveKey: null, endedAt: new Date() });
+
+/** 未払いの決済（requires_payment / failed）を取り消す。期間付与・契約終了・新しい切り替え申込のときに呼ぶ。 */
+function cancelOpenIntents(tx: Prisma.TransactionClient, subscriptionId: string, purposes?: string[]) {
+  return tx.paymentIntent.updateMany({ where: { subscriptionId, status: { in: ["requires_payment", "failed"] }, ...(purposes ? { purpose: { in: purposes } } : {}) }, data: { status: "canceled" } });
+}
+
+/** 決済の目的に対して、契約がまだその状態か（課金の前と精算の時に確認する）。 */
+function intentApplies(purpose: string, sub: { status: string; kind: string }) {
+  switch (purpose) {
+    case "activate": return sub.status === "pending";
+    case "convert_trial": return sub.status === "trialing";
+    case "upgrade": return sub.status === "active" && sub.kind === "free";
+    case "renew": return (sub.status === "active" || sub.status === "suspended") && sub.kind === "paid";
+    default: return false;
+  }
+}
 
 export async function withdrawApplication(s: SessionUser, id: string) {
   const sub = await ownSub(s, id);
@@ -208,7 +227,8 @@ export async function endTrialNow(s: SessionUser, id: string) {
 export async function cancelSubscription(s: SessionUser, id: string) {
   const sub = await ownSub(s, id);
   if (sub.kind === "free") return transition(sub, ["active"], ended("canceled"), { id: s.userId, type: "user" }, "cancel_free");
-  if (sub.kind === "paid") return transition(sub, ["active"], { status: "cancel_scheduled", cancelAt: sub.currentPeriodEnd }, { id: s.userId, type: "user" }, "cancel_at_period_end");
+  // 期間が同時に延長された場合に古い期間末で解約しないよう、読み取った期間末を条件にする
+  if (sub.kind === "paid") return transition(sub, ["active"], { status: "cancel_scheduled", cancelAt: sub.currentPeriodEnd }, { id: s.userId, type: "user" }, "cancel_at_period_end", undefined, { currentPeriodEnd: sub.currentPeriodEnd });
   throw new BizError("state", "この契約は解約できません。");
 }
 
@@ -259,6 +279,8 @@ async function grantPaidPeriod(
     },
   });
   if (r.count === 0) throw new BizError("state", "状態が変更されています。画面を更新してください。");
+  // 期間を付与したら、残っている未払いの決済は不要（二重に支払われないよう取り消す）
+  await cancelOpenIntents(tx, sub.id);
   // StarPay 合算：期間は付与し、請求は「合算請求待ち」で記録（StarPay の回収確認で入金済みになる）
   const bill = await tx.billingRecord.create({
     data: g.starpay
@@ -373,14 +395,14 @@ export async function changePlan(s: SessionUser, id: string, planVersionId: stri
   }
   if (sub.status === "active" && sub.kind === "free") {
     if (payment !== "card") throw new BizError("card_only", "無料プランからの変更はカード払いのみ対応しています。請求書払いはお問い合わせください。");
-    const intent = await prisma.$transaction((tx) => createIntent(tx, sub, "upgrade", plan, s.userId));
+    const intent = await prisma.$transaction(async (tx) => { await cancelOpenIntents(tx, sub.id, ["upgrade"]); return createIntent(tx, sub, "upgrade", plan, s.userId); });
     return { intentId: intent.id };
   }
   if (sub.status === "trialing") {
     await prisma.subscription.update({ where: { id }, data: { scheduledPlanVersionId: plan.id } });
     await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: sub.tenantId, objectType: "subscription", objectId: id, action: payment === "card" ? "convert_trial_card" : "convert_trial_request", data: { to: plan.id } });
     if (payment === "card") {
-      const intent = await prisma.$transaction((tx) => createIntent(tx, sub, "convert_trial", plan, s.userId));
+      const intent = await prisma.$transaction(async (tx) => { await cancelOpenIntents(tx, sub.id, ["convert_trial"]); return createIntent(tx, sub, "convert_trial", plan, s.userId); });
       return { intentId: intent.id };
     }
     return { requested: true as const };
@@ -444,6 +466,11 @@ export async function payIntent(s: SessionUser, intentId: string, p: { paymentMe
   if (!intent) throw new BizError("not_found", "お支払い情報が見つかりません。");
   if (intent.status === "succeeded") return intent.subscription;
   if (!["requires_payment", "failed"].includes(intent.status)) throw new BizError("state", "このお支払いは無効になっています。");
+  // 課金の前に契約の状態を確認（取り下げ・運営確認済み・切り替え済みなどの後に課金しない）
+  if (!intentApplies(intent.purpose, intent.subscription)) {
+    await prisma.paymentIntent.updateMany({ where: { id: intent.id, status: { in: ["requires_payment", "failed"] } }, data: { status: "canceled" } });
+    throw new BizError("state", "このお支払いは無効になっています。");
+  }
   if (!intent.plan.current || intent.plan.priceJpy !== intent.amountJpy) throw new BizError("price_changed", "料金プランが更新されました。もう一度お申し込みください。");
 
   let pm = p.paymentMethodId ? await prisma.paymentMethod.findFirst({ where: { id: p.paymentMethodId, tenantId: s.tenantId, active: true } }) : null;
@@ -462,22 +489,33 @@ export async function payIntent(s: SessionUser, intentId: string, p: { paymentMe
   return settleIntent(intent.id, res.chargeId, { actorId: s.userId, actorType: "user", autoRenew: p.autoRenew });
 }
 
-/** 收款成功后的结算（也可由服务商 webhook 调用）。 */
+/** 收款成功后的结算（也可由服务商 webhook 调用）。
+ * 已扣款但无法反映到契约时（状态已变化）不回滚为未付款：记为 charged_unsettled 并保留扣款号，由运营退款或手工处理，
+ * 这样既不会被自动重试再次扣款，也不会遗失这笔钱。 */
 export async function settleIntent(intentId: string, chargeId: string, a: { actorId: string; actorType: "user" | "system"; autoRenew?: boolean }) {
-  return prisma.$transaction(async (tx) => {
-    const intent = await tx.paymentIntent.findUniqueOrThrow({ where: { id: intentId }, include: { plan: true } });
-    if (intent.status === "succeeded") return tx.subscription.findUniqueOrThrow({ where: { id: intent.subscriptionId } });
-    await tx.paymentIntent.update({ where: { id: intentId }, data: { status: "succeeded", providerChargeId: chargeId, failureReason: null } });
-    const sub = await tx.subscription.findUniqueOrThrow({ where: { id: intent.subscriptionId } });
-    const okStates: Record<string, string[]> = { activate: ["pending"], convert_trial: ["trialing"], upgrade: ["active"], renew: ["active", "suspended"] };
-    if (!okStates[intent.purpose]?.includes(sub.status)) throw new BizError("state", "契約の状態が変わったため、お支払いを反映できませんでした。運営にお問い合わせください。");
-    const start = intent.purpose === "renew" && sub.currentPeriodEnd ? sub.currentPeriodEnd : new Date();
-    return grantPaidPeriod(tx, sub, {
-      start, planVersionId: intent.planVersionId, planName: intent.plan.name, amountJpy: intent.amountJpy, receiptRef: chargeId,
-      actorId: a.actorId, actorType: a.actorType, action: `card_${intent.purpose}`,
-      paymentMethodId: intent.paymentMethodId, paymentMode: "card", ...(a.autoRenew !== undefined ? { autoRenew: a.autoRenew } : {}),
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const intent = await tx.paymentIntent.findUniqueOrThrow({ where: { id: intentId }, include: { plan: true } });
+      if (intent.status === "succeeded") return tx.subscription.findUniqueOrThrow({ where: { id: intent.subscriptionId } });
+      await tx.paymentIntent.update({ where: { id: intentId }, data: { status: "succeeded", providerChargeId: chargeId, failureReason: null } });
+      const sub = await tx.subscription.findUniqueOrThrow({ where: { id: intent.subscriptionId } });
+      if (!intentApplies(intent.purpose, sub)) throw new BizError("state", "契約の状態が変わったため、お支払いを反映できませんでした。運営にお問い合わせください。");
+      const start = intent.purpose === "renew" && sub.currentPeriodEnd ? sub.currentPeriodEnd : new Date();
+      return grantPaidPeriod(tx, sub, {
+        start, planVersionId: intent.planVersionId, planName: intent.plan.name, amountJpy: intent.amountJpy, receiptRef: chargeId,
+        actorId: a.actorId, actorType: a.actorType, action: `card_${intent.purpose}`,
+        paymentMethodId: intent.paymentMethodId, paymentMode: "card", ...(a.autoRenew !== undefined ? { autoRenew: a.autoRenew } : {}),
+      });
     });
-  });
+  } catch (e) {
+    if (!(e instanceof BizError)) throw e;
+    const intent = await prisma.paymentIntent.findUnique({ where: { id: intentId } });
+    if (intent && intent.status !== "succeeded") {
+      await prisma.paymentIntent.update({ where: { id: intentId }, data: { status: "charged_unsettled", providerChargeId: chargeId, failureReason: e.message } });
+      await audit(prisma, { actorId: a.actorId, actorType: a.actorType, tenantId: intent.tenantId, objectType: "payment_intent", objectId: intentId, action: "charged_unsettled", reason: e.message, data: { chargeId, amountJpy: intent.amountJpy } });
+    }
+    throw new BizError("charged_unsettled", "お支払いは完了しましたが、契約の状態が変わっていたため反映できませんでした。運営が確認して返金または反映します。");
+  }
 }
 
 /** 定时任务：期末降级为免费套餐。 */
@@ -530,8 +568,10 @@ export async function renewDue(now = new Date()) {
   for (const sub of due) {
     const plan = sub.scheduledPlan ?? sub.plan;
     if (plan.priceType !== "monthly" || !sub.paymentMethod?.active) { out.skipped++; continue; }
-    const key = `renew:${sub.id}:${sub.currentPeriodEnd!.toISOString()}`;
+    // プランや金額が変わったら別の決済にする（古い失敗分を古い金額のまま再試行しない）
+    const key = `renew:${sub.id}:${sub.currentPeriodEnd!.toISOString()}:${plan.id}:${plan.priceJpy}`;
     let intent = await prisma.paymentIntent.findUnique({ where: { idempotencyKey: key } });
+    await prisma.paymentIntent.updateMany({ where: { subscriptionId: sub.id, purpose: "renew", status: { in: ["requires_payment", "failed"] }, idempotencyKey: { not: key } }, data: { status: "canceled" } });
     if (!intent) {
       try {
         intent = await prisma.paymentIntent.create({ data: { tenantId: sub.tenantId, subscriptionId: sub.id, purpose: "renew", planVersionId: plan.id, amountJpy: plan.priceJpy, paymentMethodId: sub.paymentMethodId, idempotencyKey: key, createdBy: "system" } });
@@ -546,8 +586,9 @@ export async function renewDue(now = new Date()) {
     if (!lock.count) { out.skipped++; continue; }
     const res = await paymentProvider().charge(sub.paymentMethod.providerRef, intent.amountJpy, `${intent.id}:${intent.attempts + 1}`);
     if (res.ok) {
+      // 精算に失敗しても failed には戻さない（settleIntent が charged_unsettled として記録）。再試行で二重に課金しない
       try { await settleIntent(intent.id, res.chargeId, { actorId: "system", actorType: "system" }); out.charged++; }
-      catch (e) { await prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed", failureReason: String(e) } }); out.failed++; }
+      catch (e) { if (!(e instanceof BizError)) throw e; out.failed++; }
     } else {
       await prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed", failureReason: res.message } });
       await prisma.subscription.update({ where: { id: sub.id }, data: { lastChargeError: `${res.message}（${intent.attempts + 1}/3 回目）` } });
@@ -574,7 +615,7 @@ export async function resumeSubscription(op: Op, id: string) {
 export async function operatorCancelAtPeriodEnd(op: Op, id: string, reason: string) {
   const sub = await prisma.subscription.findUniqueOrThrow({ where: { id } });
   if (sub.kind !== "paid") return transition(sub, ["active", "trialing"], ended("canceled"), { id: op.userId, type: "operator" }, "operator_cancel", reason);
-  return transition(sub, ["active"], { status: "cancel_scheduled", cancelAt: sub.currentPeriodEnd }, { id: op.userId, type: "operator" }, "operator_cancel_at_period_end", reason);
+  return transition(sub, ["active"], { status: "cancel_scheduled", cancelAt: sub.currentPeriodEnd }, { id: op.userId, type: "operator" }, "operator_cancel_at_period_end", reason, { currentPeriodEnd: sub.currentPeriodEnd });
 }
 
 /** 定时任务：到期处理（幂等，条件更新保证多副本不重复）。 */

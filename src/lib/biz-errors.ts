@@ -69,6 +69,7 @@ export const EN_BY_TEXT: Record<string, string> = {
   "この明細は回収確認済みか、存在しません。": "This statement is already settled or does not exist.",
   "この月の合算明細は CSV 出力済みです。後から発生した請求は翌月の明細に載ります。": "This month's statement has already been exported. Later bills go on the next month's statement.",
   "CSV 出力前、または回収確認済みの明細です。": "This statement has not been exported yet, or is already settled.",
+  "お支払いは完了しましたが、契約の状態が変わっていたため反映できませんでした。運営が確認して返金または反映します。": "The payment went through, but the contract had changed and it could not be applied. Our team will review it and refund or apply it.",
   // 决済代行（デモ）
   "カード番号が正しくありません。": "The card number is invalid.",
   "有効期限が正しくありません。": "The expiry date is invalid.",
@@ -86,6 +87,7 @@ export const EN_BY_CODE: Record<string, string> = {
   price_changed: "The plan's price has changed. Please review the latest details.",
   in_use: "This is still in use by a contract. Cancel the contract or change its payment method first.",
   blocked: "Some items need to be handled first. See the checklist on this page.",
+  charged_unsettled: "The payment went through, but it could not be applied to the contract. Our team will review it.",
   card_declined: "This card cannot be used.",
   insufficient_funds: "The card issuer declined the payment.",
   invalid_number: "The card number is invalid.",
