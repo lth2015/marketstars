@@ -12,3 +12,17 @@ describe("客户端 IP（X-Forwarded-For）", () => {
     expect(clientIp("198.51.100.7", 1)).toBe("unknown");
   });
 });
+
+import { parseBasic } from "@/lib/api";
+const basic = (v: string) => "Basic " + Buffer.from(v).toString("base64");
+describe("HTTP Basic（接入应用 client 认证）", () => {
+  it("secret 中的冒号不会被截断（RFC 7617：只在第一个冒号处分割）", () => {
+    expect(parseBasic(basic("pop-writer:abc:def:ghi"))).toEqual({ id: "pop-writer", secret: "abc:def:ghi" });
+  });
+  it("缺少 id、secret 或冒号时拒绝", () => {
+    expect(parseBasic(basic(":secret"))).toBeNull();
+    expect(parseBasic(basic("id:"))).toBeNull();
+    expect(parseBasic(basic("nocolon"))).toBeNull();
+    expect(parseBasic("Bearer abc")).toBeNull();
+  });
+});
