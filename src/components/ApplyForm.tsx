@@ -11,7 +11,7 @@ function Submit({ label, sending }: { label: string; sending: string }) {
   return <button className="btn btn-primary btn-block" type="submit" disabled={pending} aria-busy={pending}>{pending ? sending : label}</button>;
 }
 
-export function ApplyForm(props: { appId: string; planVersionId: string; expectedPriceJpy: number; mode: "trial" | "start"; idempotencyKey: string; label: string; paid: boolean; slug: string; labels: Labels }) {
+export function ApplyForm(props: { appId: string; planVersionId: string; expectedPriceJpy: number; mode: "trial" | "start"; idempotencyKey: string; label: string; paid: boolean; slug: string; labels: Labels; starpayLabel?: string | null }) {
   const L = props.labels;
   const [state, action] = useActionState<FormState, FormData>(applyAction, undefined);
   return (
@@ -24,6 +24,7 @@ export function ApplyForm(props: { appId: string; planVersionId: string; expecte
       {props.paid && (
         <fieldset className="form-row" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{L.payment}</legend>
+          {props.starpayLabel && <label className="check" style={{ marginBottom: 6 }}><input type="radio" name="payment" value="starpay" /> <span>{props.starpayLabel}</span></label>}
           <label className="check" style={{ marginBottom: 6 }}><input type="radio" name="payment" value="card" defaultChecked /> <span>{L.payCard}</span></label>
           <label className="check"><input type="radio" name="payment" value="invoice" /> <span>{L.payInvoice}</span></label>
         </fieldset>

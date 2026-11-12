@@ -250,9 +250,15 @@ model BillingRecord {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  /// direct（請求書・カード）| starpay（StarPay 利用料と合算）
+  channel            String       @default("direct")
+  starpayStatementId String?
+
   @@unique([subscriptionId, kind, periodStart])
   @@unique([receiptRef])
   @@index([tenantId])
+  @@index([channel, status])
+  @@index([starpayStatementId])
 }
 
 model Inquiry {
@@ -704,4 +710,27 @@ model DeletionRequest {
 
   @@index([status, createdAt])
   @@index([userId])
+}
+
+/// 空間（SSO テナント）と StarPay 加盟店の連携。合算請求を選べるのは連携済みの空間だけ。
+model StarpayLink {
+  tenantId     String   @id
+  merchantId   String   @unique
+  merchantName String
+  linkedBy     String
+  linkedAt     DateTime @default(now())
+}
+
+/// 月次の合算請求明細（StarPay 側の請求に載せる MarketStars 利用料）。回収確認で各請求を入金済みにする。
+model StarpayStatement {
+  id         String    @id @default(cuid())
+  month      String    @unique // YYYY-MM（JST、利用期間の開始月）
+  status     String    @default("open") // open | settled
+  totalJpy   Int
+  itemCount  Int
+  settledRef String?
+  settledAt  DateTime?
+  settledBy  String?
+  createdBy  String
+  createdAt  DateTime  @default(now())
 }

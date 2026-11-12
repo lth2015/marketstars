@@ -71,6 +71,7 @@ const ja = {
     },
     myApps: { title: "マイアプリ", space: "空間", owner: "オーナー", member: "メンバー", switch: "切り替える", billing: "請求・お支払い", agents: "AIエージェント", empty: "この空間で利用中のアプリはまだありません。", findApps: "アプリを探す", groups: { using: "利用中", trial: "無料体験中", pending: "申込中", ended: "終了" }, trialEnds: (d: string) => `体験終了 ${d}`, periodEnds: (d: string) => `期間終了 ${d}`, cancelAt: (d: string) => `解約予定 ${d}`, pendingNote: "運営が契約・お支払いを確認中です", open: "アプリを開く", contract: "契約内容" },
     apply: {
+      payStarpay: (m: string) => `StarPay の利用料と合算（${m}・すぐに利用開始・毎月自動更新）`,
       title: "お申し込み内容の確認", crumb: "お申し込み", ownerOnly: (sp: string) => `お申し込みは空間「${sp}」のオーナーのみ可能です。オーナーにお申し込みをご依頼ください。`,
       already: "この空間ではすでにお申し込み済み、または利用中です。", seeContract: "契約内容を確認する", notAccepting: "現在、新規のお申し込みを受け付けていません。",
       targetSpace: "申込先の空間", switchSpace: "空間を切り替える", switchShort: "切り替える", applyPlan: "このプランを申し込む",
@@ -97,7 +98,7 @@ const ja = {
       autoRenewOn: "自動更新を設定しました。", autoRenewOff: "自動更新を停止しました。期間終了後は入金確認がない限り終了します。",
       cardAdded: (c: string) => `${c} を登録しました。`, cardRemoved: "カードを削除しました。", reviewPosted: "レビューを投稿しました。",
       capRemoved: "利用上限を解除しました。", capSet: (v: string) => `月の利用上限を ¥${v} に設定しました。`,
-      mandateRevoked: "権限を取り消しました。このキーは直ちに使えなくなります。",
+      mandateRevoked: "権限を取り消しました。このキーは直ちに使えなくなります。", starpayLinked: (m: string) => `StarPay（${m}）と連携しました。`, starpayUnlinked: "StarPay との連携を解除しました。",
       confirmFirst: "内容を確認し、チェックを入れてください。", deletionReceived: "削除の申請を受け付けました。アカウントはまだ削除されていません。進捗はこのページで確認できます。", deletionWithdrawn: "申請を取り下げました。",
     },
     pay: {
@@ -114,6 +115,7 @@ const ja = {
       failed: (list: string) => `お支払いに失敗した請求があります：${list}`, history: "請求履歴", pending: (list: string) => `お支払い確認待ちのお申し込み：${list}。運営からのご案内に沿ってお支払いください。`,
       empty: "請求履歴はまだありません。", cols: { app: "アプリ", period: "対象期間", amount: "金額", status: "状態", paidAt: "入金日", method: "方法" }, usageTag: "AI従量",
       statuses: { due: "未入金", paid: "入金確認済み", refunded: "返金済み", void: "取消" } as Record<string, string>, card: "カード", invoice: "請求書", sep: "、",
+      starpay: { title: "StarPay との合算請求", intro: "StarPay の加盟店なら、有料プランの利用料を StarPay の月次請求に合算してお支払いいただけます（すぐに利用開始・毎月自動更新）。", linked: (id: string, name: string) => `連携中：${name}（${id}）`, merchant: "StarPay 加盟店番号", placeholder: "例：SP12345678", link: "連携する", unlink: "連携を解除", channel: "StarPay合算", due: "合算請求待ち" },
     },
     card: { number: "カード番号", exp: "有効期限（MM/YY）", cvc: "セキュリティコード", testCards: "テスト用カード番号（デモ決済）", testLabels: ["成功", "カード拒否", "登録可・請求失敗（自動更新失敗の確認用）"], register: "カードを登録", registering: "登録中…" },
     contract: {
@@ -125,7 +127,7 @@ const ja = {
       suspended: (r: string) => `運営によりこのアプリの利用を一時停止しています。理由：${r}　`, askSupport: "サポートへ問い合わせる",
       status: "状態", space: "空間", plan: "プラン", priceAtApply: "料金（申込時点）", trial: "無料体験", free: "無料", pricePerSpace: (p: string) => `${p}／月（税込）・1空間あたり`,
       startedAt: "利用開始", trialEnds: "体験終了", currentPeriod: "現在の利用期間", cancelAt: "解約日", usableUntil: "（この日時まで利用できます）",
-      payment: "お支払い", card: "カード", invoice: "請求書払い", autoRenewState: (on: boolean) => ` ・ 自動更新：${on ? "オン" : "オフ"}`,
+      payment: "お支払い", card: "カード", invoice: "請求書払い", starpay: "StarPay 利用料と合算", autoRenewState: (on: boolean) => ` ・ 自動更新：${on ? "オン" : "オフ"}`,
       switching: "切り替え申込中", nextPeriod: "次の期間から", termsAgreed: "同意した規約", termsVersion: (v: string, d: string) => `版 ${v}（${d}）`, open: "アプリを開く",
       manage: "契約の管理", withdraw: "お申し込みを取り下げる", withdrawConfirm: "お申し込みを取り下げます。後から再度お申し込みできます。",
       trialNote: "体験終了後に自動で課金されることはありません。続けて利用する場合は有料プランをお申し込みください（体験終了後でもお申し込みできます）。", toPaid: "有料プランに切り替える",
@@ -214,6 +216,7 @@ const en: Messages = {
     },
     myApps: { title: "My apps", space: "Space", owner: "owner", member: "member", switch: "Switch", billing: "Billing", agents: "AI agents", empty: "No apps are in use in this space yet.", findApps: "Find apps", groups: { using: "In use", trial: "Free trial", pending: "Applied", ended: "Ended" }, trialEnds: (d: string) => `Trial ends ${d}`, periodEnds: (d: string) => `Period ends ${d}`, cancelAt: (d: string) => `Cancels ${d}`, pendingNote: "The operator is confirming the contract and payment", open: "Open app", contract: "Contract" },
     apply: {
+      payStarpay: (m: string) => `Add to the StarPay bill (${m}; starts now, renews monthly)`,
       title: "Review your application", crumb: "Apply", ownerOnly: (sp: string) => `Only the owner of the space "${sp}" can apply. Please ask the owner to apply.`,
       already: "This space has already applied for or is using this app.", seeContract: "View the contract", notAccepting: "This app is not accepting new applications right now.",
       targetSpace: "Space", switchSpace: "Switch space", switchShort: "Switch", applyPlan: "Apply for this plan",
@@ -240,7 +243,7 @@ const en: Messages = {
       autoRenewOn: "Auto-renew is on.", autoRenewOff: "Auto-renew is off. After the period ends, the contract ends unless payment is confirmed.",
       cardAdded: (c: string) => `${c} saved.`, cardRemoved: "Card removed.", reviewPosted: "Review posted.",
       capRemoved: "The usage cap was removed.", capSet: (v: string) => `Monthly usage cap set to ¥${v}.`,
-      mandateRevoked: "Authority revoked. The key stops working immediately.",
+      mandateRevoked: "Authority revoked. The key stops working immediately.", starpayLinked: (m: string) => `Linked with StarPay (${m}).`, starpayUnlinked: "Unlinked from StarPay.",
       confirmFirst: "Please review the details and check the box.", deletionReceived: "Your deletion request was received. Your account has not been deleted yet; you can follow progress on this page.", deletionWithdrawn: "Request withdrawn.",
     },
     pay: {
@@ -257,6 +260,7 @@ const en: Messages = {
       failed: (list: string) => `Some payments failed: ${list}`, history: "Billing history", pending: (list: string) => `Applications awaiting payment: ${list}. Please pay as instructed by the operator.`,
       empty: "No billing history yet.", cols: { app: "App", period: "Period", amount: "Amount", status: "Status", paidAt: "Paid on", method: "Method" }, usageTag: "AI usage",
       statuses: { due: "Unpaid", paid: "Paid", refunded: "Refunded", void: "Void" }, card: "Card", invoice: "Invoice", sep: ", ",
+      starpay: { title: "Consolidated billing with StarPay", intro: "If you are a StarPay merchant, paid plans can be added to your monthly StarPay bill (starts now, renews monthly).", linked: (id: string, name: string) => `Linked: ${name} (${id})`, merchant: "StarPay merchant ID", placeholder: "e.g. SP12345678", link: "Link", unlink: "Unlink", channel: "StarPay bill", due: "Awaiting StarPay bill" },
     },
     card: { number: "Card number", exp: "Expiry (MM/YY)", cvc: "Security code", testCards: "Test card numbers (demo payments)", testLabels: ["Succeeds", "Declined", "Saves, but charges fail (to test failed renewals)"], register: "Save card", registering: "Saving…" },
     contract: {
@@ -268,7 +272,7 @@ const en: Messages = {
       suspended: (r: string) => `The operator has suspended this app. Reason: ${r}  `, askSupport: "Contact support",
       status: "Status", space: "Space", plan: "Plan", priceAtApply: "Price (at application)", trial: "Free trial", free: "Free", pricePerSpace: (p: string) => `${p} / month (tax incl.), per space`,
       startedAt: "Started", trialEnds: "Trial ends", currentPeriod: "Current period", cancelAt: "Cancels on", usableUntil: " (usable until then)",
-      payment: "Payment", card: "Card", invoice: "Invoice", autoRenewState: (on: boolean) => ` · Auto-renew: ${on ? "on" : "off"}`,
+      payment: "Payment", card: "Card", invoice: "Invoice", starpay: "Added to the StarPay bill", autoRenewState: (on: boolean) => ` · Auto-renew: ${on ? "on" : "off"}`,
       switching: "Switch requested", nextPeriod: "From next period", termsAgreed: "Terms agreed", termsVersion: (v: string, d: string) => `Version ${v} (${d})`, open: "Open app",
       manage: "Manage contract", withdraw: "Withdraw application", withdrawConfirm: "Withdraws the application. You can apply again later.",
       trialNote: "You will not be charged automatically when the trial ends. To keep using the app, apply for a paid plan (you can also do this after the trial).", toPaid: "Switch to a paid plan",

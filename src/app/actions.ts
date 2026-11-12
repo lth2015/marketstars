@@ -7,6 +7,7 @@ import { submitReview } from "@/lib/reviews";
 import { createMandate, revokeMandate } from "@/lib/agentpay";
 import { visibleWhere } from "@/lib/notifications";
 import { submitDeletion, withdrawDeletion } from "@/lib/deletion";
+import { linkStarpay, unlinkStarpay } from "@/lib/starpay";
 import { hit, limitIp, LIMITS } from "@/lib/ratelimit";
 import { prisma } from "@/lib/db";
 import { randomToken } from "@/lib/session";
@@ -37,7 +38,7 @@ export async function applyAction(_: FormState, fd: FormData): Promise<FormState
       idempotencyKey: String(fd.get("idempotencyKey")),
       agreed: fd.get("agreePlatform") === "on" && fd.get("agreeProvider") === "on",
       contactNote: String(fd.get("contactNote") ?? ""),
-      payment: fd.get("payment") === "card" ? "card" : "invoice",
+      payment: fd.get("payment") === "card" ? "card" : fd.get("payment") === "starpay" ? "starpay" : "invoice",
     });
     subId = sub.id;
     intentId = sub.intentId;
@@ -242,4 +243,18 @@ export async function withdrawDeletionAction(fd: FormData) {
   const s = await requireSession();
   await withdrawDeletion(s, String(fd.get("id")));
   redirect(`/account/deletion?msg=${encodeURIComponent((await fb()).deletionWithdrawn)}`);
+}
+
+export async function starpayLinkAction(fd: FormData) {
+  const s = await requireSession();
+  let msg: string;
+  try {
+    if (fd.get("op") === "unlink") { await unlinkStarpay(s); msg = (await fb()).starpayUnlinked; }
+    else { const l = await linkStarpay(s, String(fd.get("merchantId") ?? "")); msg = (await fb()).starpayLinked(l.merchantId); }
+  } catch (e) {
+    if (e instanceof BizError) redirect(`/my/billing?error=${encodeURIComponent(await bizErrorText(e))}`);
+    throw e;
+  }
+  revalidatePath("/my/billing");
+  redirect(`/my/billing?msg=${encodeURIComponent(msg)}`);
 }

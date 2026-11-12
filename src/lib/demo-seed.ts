@@ -68,7 +68,7 @@ function icon(color: string, glyph: string) {
 /** 清空业务数据并写入演示数据；返回应用数。会删除所有会话（使用者需要重新登录）。 */
 export async function seedDemo(prisma: PrismaClient): Promise<number> {
   await prisma.$transaction([
-    prisma.deletionRequest.deleteMany(), prisma.rateLimit.deleteMany(), prisma.webhookDelivery.deleteMany(), prisma.webhookEndpoint.deleteMany(), prisma.domainEvent.deleteMany(), prisma.notificationRead.deleteMany(), prisma.notification.deleteMany(), prisma.emailOutbox.deleteMany(), prisma.tenantContact.deleteMany(), prisma.ledgerAnchor.deleteMany(), prisma.ledgerEntry.deleteMany(), prisma.agentTransaction.deleteMany(), prisma.agentMandate.deleteMany(), prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
+    prisma.starpayStatement.deleteMany(), prisma.starpayLink.deleteMany(), prisma.deletionRequest.deleteMany(), prisma.rateLimit.deleteMany(), prisma.webhookDelivery.deleteMany(), prisma.webhookEndpoint.deleteMany(), prisma.domainEvent.deleteMany(), prisma.notificationRead.deleteMany(), prisma.notification.deleteMany(), prisma.emailOutbox.deleteMany(), prisma.tenantContact.deleteMany(), prisma.ledgerAnchor.deleteMany(), prisma.ledgerEntry.deleteMany(), prisma.agentTransaction.deleteMany(), prisma.agentMandate.deleteMany(), prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
     prisma.applicationRequest.deleteMany(), prisma.subscription.deleteMany(), prisma.trialUsage.deleteMany(), prisma.inquiry.deleteMany(),
     prisma.contentEntry.deleteMany(), prisma.appRelease.deleteMany(), prisma.planVersion.deleteMany(), prisma.app.deleteMany(),
     prisma.provider.deleteMany(), prisma.category.deleteMany(), prisma.industry.deleteMany(), prisma.integrationTag.deleteMany(),
@@ -157,6 +157,8 @@ export async function seedDemo(prisma: PrismaClient): Promise<number> {
 
   // 1) 山田 花子の 3 つ目の空間「ひかり整骨院」：有料（請求書払い・3か月分の入金履歴）、無料、無料体験中
   const hikari = { tenantId: "demo-tenant-hikari", tenantName: "ひかり整骨院" };
+  // ひかり整骨院は StarPay 加盟店：有料プランを StarPay の利用料と合算して申し込める
+  await prisma.starpayLink.create({ data: { tenantId: hikari.tenantId, merchantId: "SP20240611", merchantName: "StarPay 加盟店 0611", linkedBy: "demo0000000000000000000000000001" } });
   await paidHistory({ ...hikari, slug: "review-reply", months: 3, receiptPrefix: "DEMO-HIKARI-RR" });
   const mt = bySlug.get("menu-translator")!;
   const mtFree = mt.plans.find((p) => p.priceType === "free")!;
