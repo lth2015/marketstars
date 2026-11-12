@@ -22,6 +22,7 @@ const ja = {
   unread: (n: number) => `未読 ${n} 件`,
   footer: { help: "ヘルプ", contact: "お問い合わせ", terms: "利用規約", privacy: "プライバシーポリシー", developers: "開発者の方へ", api: "API (OpenAPI)", language: "Language" },
   demoBanner: "デモ環境：演示用の合成データと演示ログインを使用しています（本番では共通 SSO を使用）",
+  demoGuide: "デモガイド",
   cta: {
     login: "ログインして利用する",
     free: "無料で利用開始",
@@ -164,6 +165,7 @@ const en: Messages = {
   unread: (n: number) => `${n} unread`,
   footer: { help: "Help", contact: "Contact", terms: "Terms", privacy: "Privacy", developers: "For developers", api: "API (OpenAPI)", language: "言語" },
   demoBanner: "Demo environment: synthetic data and demo sign-in (production uses the shared SSO)",
+  demoGuide: "Demo guide",
   cta: {
     login: "Log in to use",
     free: "Start for free",

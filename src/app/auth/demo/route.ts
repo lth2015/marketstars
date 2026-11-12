@@ -12,6 +12,11 @@ export async function POST(req: NextRequest) {
   const rl = await limitIp("auth", LIMITS.authStart, req);
   if (!rl.ok) return tooMany(rl.retryAfter);
   const fd = await req.formData();
+  // デモガイド：ゲストとして開く手順は、ログアウトしてから遷移する
+  if (fd.get("guest") === "1") {
+    await destroySession();
+    return NextResponse.redirect(new URL(safeReturnTo(String(fd.get("returnTo") ?? "/")), config.baseUrl), 303);
+  }
   const p = DEMO_PERSONAS.find((x) => x.userId === fd.get("userId"));
   const t = p?.tenants.find((x) => x.id === fd.get("tenantId"));
   if (!p || !t) return NextResponse.redirect(new URL("/auth/login?error=1", config.baseUrl), 303);

@@ -171,6 +171,11 @@ try {
     const r = await fetch(`${SSO}/oauth2/auth?client_id=marketstars-local&redirect_uri=${encodeURIComponent("https://evil.example/cb")}&response_type=code&code_challenge=x&code_challenge_method=S256&state=s`);
     assert.equal(r.status, 400);
   });
+  await step("O12 demo guide and demo reset do not exist in OIDC mode", async () => {
+    assert.equal((await fetch(`${MS}/demo`)).status, 404);
+    assert.equal((await fetch(`${MS}/demo/reset`, { method: "POST", body: new URLSearchParams({ confirm: "on" }) })).status, 404);
+    assert.equal((await fetch(`${MS}/auth/demo`, { method: "POST", body: new URLSearchParams({ guest: "1" }), redirect: "manual" })).status, 404);
+  });
 } finally {
   await browser.close();
   sql(`DELETE FROM OperatorGrant WHERE id='og-oidc-test'`);

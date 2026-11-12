@@ -26,7 +26,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {config.authMode === "demo" && (
           <aside aria-label="demo" style={{ background: "#123A63", color: "#fff", fontSize: 12, textAlign: "center", padding: "4px 8px" }}>
-            {messages[locale].demoBanner}
+            {messages[locale].demoBanner}　<a href="/demo" style={{ color: "#fff", fontWeight: 700 }}>{messages[locale].demoGuide}</a>
           </aside>
         )}
         <Header />

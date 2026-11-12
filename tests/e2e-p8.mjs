@@ -33,7 +33,7 @@ async function axe(paths) {
 }
 try {
   await step("X1 axe: public pages have no WCAG 2.1 AA / best-practice violations", async () => {
-    await axe(["/", "/apps", "/apps?trial=true&category=marketing", "/apps/pop-writer", "/ranking", "/help", "/help/getting-started", "/contact", "/auth/login"]);
+    await axe(["/", "/apps", "/apps?trial=true&category=marketing", "/apps/pop-writer", "/ranking", "/help", "/help/getting-started", "/contact", "/auth/login", "/demo"]);
   });
   await step("X2 axe: signed-in customer pages", async () => {
     await login("山田 花子", "さくらベーカリー（オーナー）", "/my/apps");
