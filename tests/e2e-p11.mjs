@@ -130,6 +130,15 @@ try {
     await see(page.getByText(/AI 返信案（\d+ tokens/));
     const usage = Number(sql(`SELECT COUNT(*) FROM UsageEvent u JOIN Subscription s ON s.id = u.subscriptionId JOIN App a ON a.id = s.appId WHERE a.slug = 'review-reply' AND s.tenantId = 'demo-tenant-hikari'`));
     assert.ok(usage >= 1, "gateway call is metered to the space");
+    // アプリ自身の作成履歴：この空間で作ったものだけが表示され、別の空間の履歴は見えない
+    sql("INSERT INTO DemoAppReviewDraft (id, tenantId, userId, review, rating, tone, store) VALUES ('g8-other', 'demo-tenant-sakura', 'x', '別の空間のクチコミ（見えてはいけない）', 4, 'polite', 'さくら')");
+    await page.reload();
+    const hist = page.getByTestId("rr-history");
+    await see(hist.getByRole("link", { name: /予約の時間からかなり待たされました/ }));
+    await see(hist.getByText(/AI 案あり/));
+    assert.equal(await page.getByText("別の空間のクチコミ").count(), 0);
+    await hist.getByRole("link").first().click();
+    await see(page.locator(".panel", { hasText: "返信案 1" }));
     // 起動コードなし・偽の起動コードでは新しいセッションは作られない
     await page.goto(`${BASE}/integrations/review-reply/start`);
     await page.waitForURL(/review-reply\?e=launch$/);

@@ -736,3 +736,18 @@ model StarpayStatement {
   createdBy  String
   createdAt  DateTime  @default(now())
 }
+
+/// デモ接入アプリ「クチコミ返信アシスタント」自身のデータ（空間ごとの作成履歴）。マーケットのデータとは別に、アプリ側で空間ごとに分けて保持する例。
+model DemoAppReviewDraft {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  review    String   @db.Text
+  rating    Int
+  tone      String
+  store     String
+  aiText    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}

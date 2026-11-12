@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { app, draftReplies } from "./lib";
 import { MarketStarsError } from "@/sdk/marketstars";
 import { getLocale, getMessages } from "@/lib/messages";
+import { prisma } from "@/lib/db";
 
 const PROMPT = {
   ja: { system: "あなたは日本の店舗のクチコミ返信を手伝うアシスタントです。丁寧で誠実な返信文を1案、日本語で、5文以内で書いてください。個人情報や事実と異なる約束は書かないでください。", user: (st: string, r: string, t: string) => `店舗名：${st}\n評価：★${r}\nクチコミ：${t}` },
@@ -41,6 +42,8 @@ async function draft(fd: FormData) {
       q.set("aierr", e instanceof MarketStarsError ? e.message : (await getMessages()).ui.integrations.aiFailed);
     }
   }
+  // アプリ自身のデータ：作成履歴を空間（tenant）ごとに保存する
+  await prisma.demoAppReviewDraft.create({ data: { tenantId: s.t, userId: s.u, review, rating: Number(rating), tone, store, aiText: q.get("ai") } });
   redirect(`${app.path}?${q}`);
 }
 
@@ -67,6 +70,8 @@ export default async function ReviewReply({ searchParams }: { searchParams: Prom
   if (!s) return shell(<div className="panel"><p>{sp.e === "denied" ? I.denied : I.openFromMarket}</p><a className="btn btn-primary" href="/my/apps">{I.toMyApps}</a></div>);
   if (!ent?.entitled) return shell(<div className="alert alert-error">{I.ended(ent?.status ?? "")}<a href="/my/apps">{I.checkMarket}</a></div>);
   const rating = Number(sp.rating ?? 5);
+  const history = await prisma.demoAppReviewDraft.findMany({ where: { tenantId: s.t }, orderBy: { createdAt: "desc" }, take: 10 });
+  const fmt = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ja-JP", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Tokyo" });
   const drafts = sp.review ? draftReplies(sp.review, rating, sp.store || s.tn, sp.tone ?? "polite", locale) : [];
   return shell(
     <>
@@ -88,6 +93,23 @@ export default async function ReviewReply({ searchParams }: { searchParams: Prom
         </div>
       )}
       <p className="small muted" style={{ marginTop: 16 }}>{L.note}</p>
+      <section className="panel" style={{ marginTop: 24 }} aria-labelledby="rr-history">
+        <h2 id="rr-history" style={{ fontSize: 18, margin: "0 0 4px" }}>{L.history}</h2>
+        <p className="small muted" style={{ margin: "0 0 12px" }}>{L.historyNote(s.tn)}</p>
+        {history.length === 0 ? <p className="small muted">{L.historyEmpty}</p> : (
+          <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0 }} data-testid="rr-history">
+            {history.map((h) => {
+              const q = new URLSearchParams({ review: h.review, rating: String(h.rating), tone: h.tone, store: h.store });
+              return (
+                <li key={h.id} style={{ borderTop: "1px solid var(--line, #e3e8ef)", paddingTop: 8 }}>
+                  <div className="small muted">{fmt.format(h.createdAt)} ・ {"★".repeat(h.rating)}{h.aiText ? ` ・ ${L.withAi}` : ""}</div>
+                  <a href={`${app.path}?${q}`} style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.review}</a>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </>,
   );
 }

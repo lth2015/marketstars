@@ -41,6 +41,7 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     steps: [
       { title: "マイアプリから「クチコミ返信アシスタント」を開く", hint: "山田 花子／ひかり整骨院。一覧の「アプリを開く」を押します。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
       { title: "★2 のクチコミに返信案を作る", hint: "例：「施術は良かったけど、予約の時間からかなり待たされました」。お詫びと改善の一文が入った案が3つ出ます。「AI モデルでも」をオンにするとトークン従量で課金され、契約内容の利用量に反映されます。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "作成履歴が空間ごとに分かれていることを確かめる", hint: "作った返信案は画面下の「最近の作成履歴」に残ります（アプリ側のデータ）。ヘッダーで空間を切り替えて別の空間から開くと、ひかり整骨院の履歴は見えません。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
     ],
   },
   {
