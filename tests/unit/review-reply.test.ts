@@ -52,3 +52,22 @@ describe("話題ごとの調子", () => {
     expect(new Set(d).size).toBe(3);
   });
 });
+
+describe("English", () => {
+  it("English drafts: apology for the wait, thanks for the staff, signed with the store", () => {
+    const d = draftReplies("The staff were friendly but we had a long wait.", 2, "Hikari Clinic", "polite", "en");
+    expect(d).toHaveLength(3);
+    expect(d[0]).toContain("sorry to have kept you waiting");
+    expect(d[0]).toContain("kind words about our staff");
+    expect(d[0]).toContain("The team at Hikari Clinic");
+    expect(new Set(d).size).toBe(3);
+  });
+  it("the mock model answers English prompts in English", () => {
+    const t = __test.mockText("You help a local shop reply to customer reviews.", "Store: Hikari\nRating: 2\nReview: long wait");
+    expect(t).toContain("sorry for the long wait");
+    expect(t).not.toMatch(/[぀-ヿ]/);
+    const p = __test.mockText("You are a promotional copywriter. POP copy", "Product: Croissant\nFeatures: flaky, fresh\nTone: friendly");
+    expect(p).toContain("Croissant");
+    expect(p).toContain("flaky");
+  });
+});

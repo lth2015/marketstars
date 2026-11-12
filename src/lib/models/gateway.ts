@@ -50,19 +50,27 @@ function fields(text: string): Record<string, string> {
 /** 用途に合わせた決定的な応答（モデル呼び出しの代わり）。用途は system プロンプトで判定する。 */
 function mockText(system: string, last: string): string {
   const f = fields(last);
-  if (/クチコミ/.test(system)) {
-    const stars = (f["評価"] ?? "").replace(/[^★]/g, "").length || Number((f["評価"] ?? "").replace(/\D/g, "")) || 5;
-    const store = f["店舗名"] || "当店";
-    const review = f["クチコミ"] ?? "";
-    const wait = /待|遅|時間/.test(review);
+  const en = !/[\u3040-\u30ff]/.test(system); // 英語のプロンプトには英語で答える
+  if (/クチコミ|review/i.test(system)) {
+    const ratingRaw = f["評価"] ?? f["Rating"] ?? "";
+    const stars = ratingRaw.replace(/[^★]/g, "").length || Number(ratingRaw.replace(/\D/g, "")) || 5;
+    const store = f["店舗名"] || f["Store"] || (en ? "our store" : "当店");
+    const review = f["クチコミ"] ?? f["Review"] ?? "";
+    const wait = /待|遅|時間|wait|slow/i.test(review);
+    if (en) {
+      return stars <= 2
+        ? ["[AI suggestion] Thank you for visiting us and for your honest feedback.", wait ? "We are truly sorry for the long wait and the inconvenience it caused." : "We are sorry that we fell short of your expectations.", "We have shared your comments with the whole team and are reviewing how we serve our guests.", `We hope to welcome you again at ${store}.`].join("\n")
+        : ["[AI suggestion] Thank you so much for your kind review.", "It is wonderful to hear you enjoyed your visit; the whole team is delighted.", `We look forward to seeing you again at ${store}.`].join("\n");
+    }
     return stars <= 2
       ? [`【AI提案】このたびはご来店いただき、また率直なご意見をお寄せいただき、ありがとうございます。`, wait ? "お待たせしてしまい、ご不便をおかけしたことを心よりお詫び申し上げます。" : "ご期待に沿えなかった点があり、申し訳ございません。", "いただいた内容はスタッフ全員で共有し、ご案内の流れを見直してまいります。", `またお越しいただける機会がございましたら、${store}一同、心を込めてお迎えいたします。`].join("\n")
       : [`【AI提案】あたたかいクチコミをありがとうございます。`, "お楽しみいただけたご様子が伝わり、スタッフ一同大変うれしく思っております。", `次回のご来店も、${store}一同心よりお待ちしております。`].join("\n");
   }
-  if (/コピー|POP/.test(system)) {
-    const product = f["商品"] || "おすすめ商品";
-    const feats = (f["特徴"] ?? "").split(/[、,]/).map((x) => x.trim()).filter(Boolean);
-    const a = feats[0] ?? "こだわり", b = feats[1] ?? feats[0] ?? "おいしさ";
+  if (/コピー|POP|copy/i.test(system)) {
+    const product = f["商品"] || f["Product"] || (en ? "our special" : "おすすめ商品");
+    const feats = (f["特徴"] ?? f["Features"] ?? "").split(/[、,]/).map((x) => x.trim()).filter(Boolean);
+    const a = feats[0] ?? (en ? "quality" : "こだわり"), b = feats[1] ?? feats[0] ?? (en ? "flavor" : "おいしさ");
+    if (en) return ["[AI suggestion]", `1. ${a} you can taste: ${product}.`, `2. ${b}, made for you. Today's pick: ${product}`, `3. One bite says it all. ${product}, now available.`].join("\n");
     return [`【AI提案】`, `1. ${a}がうれしい、${product}。`, `2. ${b}を、あなたに。本日のおすすめ ${product}`, `3. ひと口で伝わる${a}。${product}、はじめました。`].join("\n");
   }
   const topic = last.replace(/\s+/g, " ").slice(0, 40);

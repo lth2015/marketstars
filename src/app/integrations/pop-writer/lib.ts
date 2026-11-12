@@ -19,7 +19,28 @@ const TONES: Record<string, string[]> = {
   urgent: ["本日限定！", "数量限定・お早めに", "なくなり次第終了"],
 };
 
-export function generateCopies(product: string, features: string, tone: string, count: number) {
+const TONES_EN: Record<string, string[]> = {
+  friendly: ["Today's pick!", "You'll love", "Feel-good"],
+  premium: ["Carefully crafted", "For a special moment", "Made by our artisans"],
+  urgent: ["Today only!", "Limited stock", "While supplies last"],
+};
+
+function generateCopiesEn(product: string, features: string, tone: string, count: number) {
+  const f = features.split(/[、,\n]/).map((x) => x.trim()).filter(Boolean);
+  const words = TONES_EN[tone] ?? TONES_EN.friendly;
+  const pick = (i: number) => f[i % Math.max(1, f.length)] ?? "";
+  const templates = [
+    (i: number) => `${words[i % 3]} ${product}\nProudly ${pick(i) || "made fresh"}.`,
+    (i: number) => `[${product}]\n${pick(i)}${pick(i + 1) ? ` & ${pick(i + 1)}` : ""}. ${words[(i + 1) % 3]} treat.`,
+    (i: number) => `${pick(i) || "Everyday"} goodness: ${product}.\n${words[(i + 2) % 3]} flavor, delivered.`,
+    (i: number) => `#${product.replace(/\s/g, "")} ${f.map((x) => `#${x.replace(/\s/g, "")}`).join(" ")}\n${words[i % 3]} Give it a try.`,
+    (i: number) => `Staff pick: ${product}\nThe secret is "${pick(i + 2) || pick(i)}". ${words[(i + 1) % 3]}`,
+  ];
+  return Array.from({ length: count }, (_, i) => templates[i % templates.length](i));
+}
+
+export function generateCopies(product: string, features: string, tone: string, count: number, locale: "ja" | "en" = "ja") {
+  if (locale === "en") return generateCopiesEn(product, features, tone, count);
   const f = features.split(/[、,\n]/).map((x) => x.trim()).filter(Boolean);
   const words = TONES[tone] ?? TONES.friendly;
   const out: string[] = [];

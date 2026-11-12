@@ -34,7 +34,8 @@ function topicLines(review: string, negativeRating: boolean): string[] {
 const NEG_HEAD = ["貴重なご意見をいただき、ありがとうございます。", "ご来店いただき、また率直なご感想をお寄せいただき、ありがとうございます。", "このたびはご来店ありがとうございました。ご意見を拝見いたしました。"];
 
 /** テンプレートで返信案を 3 案作る。評価が 2 以下ならお詫びを先に、指摘された話題ごとに一文を添える。3 案は書き出し・本文の量・結びを変える。 */
-export function draftReplies(review: string, rating: number, store: string, tone: string): string[] {
+export function draftReplies(review: string, rating: number, store: string, tone: string, locale: "ja" | "en" = "ja"): string[] {
+  if (locale === "en") return draftRepliesEn(review, rating, store, tone);
   const opens = OPEN[tone] ?? OPEN.polite;
   const negative = rating <= 2;
   const lines = topicLines(review, negative);
@@ -45,5 +46,44 @@ export function draftReplies(review: string, rating: number, store: string, tone
     const body = i === 1 ? lines.slice(0, 1) : lines;
     const head = negative ? NEG_HEAD[i] : opens[i % opens.length];
     return [head, ...body, closing[i], tone === "brief" ? "" : `${store} スタッフ一同`].filter(Boolean).join("\n");
+  });
+}
+
+// ---- English ----
+const TOPICS_EN: Topic[] = [
+  { keys: /wait|slow|long time|queue|crowd|待ち|待た|遅/i, sorry: "We are very sorry to have kept you waiting. We are reviewing how we seat and serve our guests." },
+  { keys: /delicious|tasty|food|meal|flavou?r|美味|おいし|味/i, thanks: "We are delighted you enjoyed the food; it means a lot to our team." },
+  { keys: /staff|service|server|friendly|rude|接客|スタッフ|店員|対応/i, thanks: "Thank you for your kind words about our staff.", sorry: "We apologise that our service fell short. We will address this with our team." },
+  { keys: /clean|dirty|tidy|清潔|きれい|汚/i, thanks: "Thank you for noticing how we keep the place clean.", sorry: "We are sorry the space was not as clean as it should be." },
+  { keys: /price|expensive|value|cost|高い|値段|価格/i, sorry: "We will review our offering so that it feels worth the price." },
+];
+const POSITIVE_EN = /good|great|delicious|tasty|friendly|kind|clean|love|excellent|nice|amazing|helpful|良|丁寧|美味|おいし|きれい/i;
+const NEGATIVE_EN = /bad|slow|wait|dirty|rude|expensive|disappoint|poor|cold|terrible|not |遅|待た|汚|高い|残念/i;
+const OPEN_EN: Record<string, string[]> = {
+  polite: ["Thank you very much for visiting us and for taking the time to leave a review.", "Thank you for choosing us among so many places.", "Thank you for your visit and your kind review."],
+  friendly: ["Thanks so much for coming in!", "Thanks for the review!", "So glad you stopped by!"],
+  brief: ["Thank you for visiting.", "Thank you for the review.", "Thanks for coming."],
+};
+const NEG_HEAD_EN = ["Thank you for your honest feedback.", "Thank you for visiting and for sharing your experience with us.", "Thank you for your visit. We have read your comments carefully."];
+
+export function draftRepliesEn(review: string, rating: number, store: string, tone: string): string[] {
+  const opens = OPEN_EN[tone] ?? OPEN_EN.polite;
+  const negative = rating <= 2;
+  const sentences = review.split(/[.!?\n。！？]|\bbut\b|けど/i).map((x) => x.trim()).filter(Boolean);
+  const lines: string[] = [];
+  for (const t of TOPICS_EN) {
+    const sentence = sentences.find((x) => t.keys.test(x));
+    if (!sentence) continue;
+    const neg = NEGATIVE_EN.test(sentence) ? true : POSITIVE_EN.test(sentence) ? false : negative;
+    const line = neg ? t.sorry ?? t.thanks : t.thanks ?? t.sorry;
+    if (line) lines.push(line);
+  }
+  const closing = negative
+    ? ["We take your feedback seriously and will keep improving.", "We would be grateful for the chance to welcome you again.", "We will do our best to make your next visit a better one."]
+    : ["We look forward to seeing you again soon.", "We will be ready to welcome you on your next visit.", "Thank you again, and see you soon."];
+  return [0, 1, 2].map((i) => {
+    const body = i === 1 ? lines.slice(0, 1) : lines;
+    const head = negative ? NEG_HEAD_EN[i] : opens[i % opens.length];
+    return [head, ...body, closing[i], tone === "brief" ? "" : `The team at ${store}`].filter(Boolean).join("\n");
   });
 }
