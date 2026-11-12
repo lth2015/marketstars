@@ -67,6 +67,8 @@ export const EN_BY_TEXT: Record<string, string> = {
   "この月に合算する請求はありません。": "There is nothing to bill for this month.",
   "StarPay の回収参照番号を入力してください。": "Enter the StarPay collection reference.",
   "この明細は回収確認済みか、存在しません。": "This statement is already settled or does not exist.",
+  "この月の合算明細は CSV 出力済みです。後から発生した請求は翌月の明細に載ります。": "This month's statement has already been exported. Later bills go on the next month's statement.",
+  "CSV 出力前、または回収確認済みの明細です。": "This statement has not been exported yet, or is already settled.",
   // 决済代行（デモ）
   "カード番号が正しくありません。": "The card number is invalid.",
   "有効期限が正しくありません。": "The expiry date is invalid.",

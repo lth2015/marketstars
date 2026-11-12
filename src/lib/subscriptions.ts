@@ -262,7 +262,7 @@ async function grantPaidPeriod(
   // StarPay 合算：期間は付与し、請求は「合算請求待ち」で記録（StarPay の回収確認で入金済みになる）
   const bill = await tx.billingRecord.create({
     data: g.starpay
-      ? { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "due", channel: "starpay", periodStart: g.start, periodEnd: end, note: g.note || null }
+      ? { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "due", channel: "starpay", starpayMerchantId: (await tx.starpayLink.findUnique({ where: { tenantId: sub.tenantId } }))?.merchantId ?? null, periodStart: g.start, periodEnd: end, note: g.note || null }
       : { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "paid", periodStart: g.start, periodEnd: end, receiptRef: g.receiptRef, paidAmountJpy: g.amountJpy, paidAt: new Date(), confirmedBy: g.actorId, note: g.note || null },
   });
   await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind: "paid", startsAt: g.start, endsAt: end, billingRecordId: bill.id } });
@@ -487,7 +487,7 @@ export async function applyScheduledDowngrades(now = new Date()) {
   for (const sub of due) {
     const plan = sub.scheduledPlan!;
     await prisma.$transaction(async (tx) => {
-      const r = await tx.subscription.updateMany({ where: { id: sub.id, status: "active", scheduledPlanVersionId: plan.id }, data: { kind: "free", planVersionId: plan.id, planNameSnapshot: plan.name, priceJpySnapshot: 0, scheduledPlanVersionId: null, currentPeriodStart: sub.currentPeriodEnd, currentPeriodEnd: null, autoRenew: false } });
+      const r = await tx.subscription.updateMany({ where: { id: sub.id, status: "active", scheduledPlanVersionId: plan.id }, data: { kind: "free", planVersionId: plan.id, planNameSnapshot: plan.name, priceJpySnapshot: 0, scheduledPlanVersionId: null, currentPeriodStart: sub.currentPeriodEnd, currentPeriodEnd: null, autoRenew: false, paymentMode: "invoice" } });
       if (!r.count) return;
       await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind: "free", startsAt: sub.currentPeriodEnd! } });
       await audit(tx, { actorId: "system", actorType: "system", tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action: "downgrade_to_free", fromState: "active", toState: "active" });

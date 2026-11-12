@@ -222,6 +222,8 @@ export async function confirmDueAction(fd: FormData) {
   const amount = Math.floor(Number(fd.get("amountJpy")));
   const rec = await prisma.billingRecord.findUnique({ where: { id } });
   if (!rec || rec.status !== "due") back("/admin/billing", "error", "未入金の請求ではありません。");
+  // StarPay 合算の請求は合算明細の回収確認でのみ入金済みにする（個別に確認すると StarPay 側と二重に回収される）
+  if (rec!.channel === "starpay") back("/admin/billing", "error", "StarPay 合算の請求は「StarPay 合算請求」の回収確認で処理してください。");
   if (!ref) back("/admin/billing", "error", "入金証憑番号を入力してください。");
   if (amount !== rec!.amountJpy) back("/admin/billing", "error", `金額が請求額（¥${rec!.amountJpy.toLocaleString()}）と一致しません。`);
   try {

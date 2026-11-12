@@ -253,6 +253,8 @@ model BillingRecord {
   /// direct（請求書・カード）| starpay（StarPay 利用料と合算）
   channel            String       @default("direct")
   starpayStatementId String?
+  /// 請求作成時点の StarPay 加盟店番号（後から連携を変えても請求先は変わらない）
+  starpayMerchantId  String?
 
   @@unique([subscriptionId, kind, periodStart])
   @@unique([receiptRef])
@@ -725,7 +727,7 @@ model StarpayLink {
 model StarpayStatement {
   id         String    @id @default(cuid())
   month      String    @unique // YYYY-MM（JST、利用期間の開始月）
-  status     String    @default("open") // open | settled
+  status     String    @default("open") // open（追加可）| exported（CSV 出力済み・追加不可）| settled（回収確認済み）
   totalJpy   Int
   itemCount  Int
   settledRef String?

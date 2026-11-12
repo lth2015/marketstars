@@ -101,6 +101,9 @@ try {
     const csv = await (await page.request.get(`${BASE}/admin/starpay/export?id=${stId}`)).text();
     assert.match(csv, /SP20240611/);
     assert.match(csv, /売上インサイトAI/);
+    // CSV を出力した時点で明細が確定し、回収確認ができるようになる
+    assert.equal(sql(`SELECT status FROM StarpayStatement WHERE id='${stId}'`), "exported");
+    await page.reload();
     const row = page.locator("tr", { has: page.locator(`input[name="id"][value="${stId}"]`) });
     await row.locator('input[name="ref"]').fill("SPC-TEST-1");
     await row.getByRole("button", { name: "回収を確認" }).click();
@@ -152,6 +155,21 @@ try {
     await card.getByRole("button", { name: "このプランに切り替える" }).click();
     await see(page.getByText("有料プランに切り替えました"));
     assert.equal(sql(`SELECT CONCAT(kind, '/', paymentMode, '/', planNameSnapshot) FROM Subscription WHERE id='${id}'`), "paid/starpay/プラス");
+  });
+  await step("SP9 bills that arrive after a month's CSV is exported roll into the next month's statement; generic payment confirmation refuses StarPay bills", async () => {
+    // SP7・SP8 で作られた当月開始の請求は、当月の明細がすでに CSV 出力・回収済みなので翌月の明細へ
+    const settledMonth = sql("SELECT month FROM StarpayStatement WHERE status='settled' ORDER BY month LIMIT 1");
+    await login("運営 太郎", "MarketStars 運営（オーナー）", "/admin/billing");
+    await see(page.getByText("StarPay 合算（回収確認は「StarPay 合算請求」で）"));
+    await page.goto(`${BASE}/admin/starpay`);
+    const rows = await page.locator("section", { hasText: "明細に未掲載の合算請求" }).locator("tbody tr").allInnerTexts();
+    assert.ok(rows.length >= 1 && rows.every((r) => !r.startsWith(settledMonth)), `unbilled rows: ${JSON.stringify(rows)}`);
+    await page.getByRole("button", { name: "合算明細を作成" }).first().click();
+    await see(page.getByText("の合算明細を作成しました"));
+    assert.equal(sql("SELECT COUNT(*) FROM BillingRecord WHERE channel='starpay' AND status='due' AND starpayStatementId IS NULL"), "0");
+    assert.ok(sql("SELECT MIN(s.month) FROM BillingRecord b JOIN StarpayStatement s ON s.id=b.starpayStatementId WHERE b.status='due'") > settledMonth);
+    // 請求ごとに加盟店番号を保持している
+    assert.equal(sql("SELECT COUNT(*) FROM BillingRecord WHERE channel='starpay' AND starpayMerchantId IS NULL"), "0");
   });
 } finally {
   await browser.close();

@@ -20,14 +20,14 @@ export default async function StarpayAdmin({ searchParams }: { searchParams: Pro
       <h1>StarPay 合算請求</h1>
       <p className="small muted">
         StarPay と連携した空間（現在 {links} 空間）は、有料プランの利用料を StarPay の月次請求に合算して支払えます。申込時点で利用開始・毎月自動更新し、各期間の請求は「合算請求待ち」になります。
-        月ごとに合算明細を作成して CSV を StarPay の請求システムへ連携し、StarPay からの回収を確認すると、明細内の請求がすべて入金済みになります（台帳と提供会社への精算にも反映）。
+        月ごとに合算明細を作成し、CSV をダウンロードすると明細が確定します（以後その明細には追加されず、後から発生した請求は翌月の明細に繰り越されます）。CSV を StarPay の請求システムへ連携し、StarPay からの回収を確認すると、明細内の請求がすべて入金済みになります（台帳と提供会社への精算にも反映）。
       </p>
       <Flash msg={sp.msg} error={sp.error} />
 
       <section className="panel stack">
         <h2 style={{ margin: 0, fontSize: 18 }}>明細に未掲載の合算請求</h2>
         {pending.length === 0 ? <p className="small muted" style={{ margin: 0 }}>未掲載の請求はありません。</p> : (
-          <div className="table-wrap"><table className="table"><thead><tr><th>対象月（利用期間の開始月）</th><th>件数</th><th>金額</th><th></th></tr></thead><tbody>
+          <div className="table-wrap"><table className="table"><thead><tr><th>掲載する月</th><th>件数</th><th>金額</th><th></th></tr></thead><tbody>
             {pending.map((p) => (
               <tr key={p.month}><td>{p.month}</td><td>{p.count}</td><td>{yen(p.totalJpy)}</td><td>
                 <form action={starpayStatementAction}><input type="hidden" name="op" value="build" /><input type="hidden" name="month" value={p.month} /><button className="btn btn-secondary btn-sm">合算明細を作成</button></form>
@@ -44,9 +44,9 @@ export default async function StarpayAdmin({ searchParams }: { searchParams: Pro
             {statements.map((st) => (
               <tr key={st.id}>
                 <td>{st.month}</td><td>{st.itemCount}</td><td>{yen(st.totalJpy)}</td>
-                <td>{st.status === "settled" ? `回収済み（${formatJst(st.settledAt, true)}）` : "回収待ち"}</td>
+                <td>{st.status === "settled" ? `回収済み（${formatJst(st.settledAt, true)}）` : st.status === "exported" ? "CSV 出力済み・回収待ち" : "作成中（CSV 出力前）"}</td>
                 <td><a href={`/admin/starpay/export?id=${st.id}`}>ダウンロード</a></td>
-                <td>{st.status === "settled" ? <span className="small">{st.settledRef}</span> : (
+                <td>{st.status === "settled" ? <span className="small">{st.settledRef}</span> : st.status === "open" ? <span className="small muted">CSV を出力すると確認できます</span> : (
                   <form action={starpayStatementAction} className="row" style={{ gap: 8 }}>
                     <input type="hidden" name="op" value="settle" /><input type="hidden" name="id" value={st.id} />
                     <input name="ref" aria-label={`${st.month} の回収参照番号`} placeholder="回収参照番号" required style={{ ...inp, width: 160 }} />
