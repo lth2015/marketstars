@@ -63,7 +63,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
           {sub.trialEndsAt && <><dt>{C.trialEnds}</dt><dd>{formatJst(sub.trialEndsAt, true)}</dd></>}
           {sub.kind === "paid" && sub.currentPeriodEnd && <><dt>{C.currentPeriod}</dt><dd>{formatJst(sub.currentPeriodStart, true)} 〜 {formatJst(sub.currentPeriodEnd, true)}</dd></>}
           {sub.cancelAt && <><dt>{C.cancelAt}</dt><dd>{formatJst(sub.cancelAt, true)}{C.usableUntil}</dd></>}
-          {sub.kind === "paid" && <><dt>{C.payment}</dt><dd>{sub.paymentMode === "card" ? `${C.card}${sub.paymentMethod ? `（${sub.paymentMethod.brand} •••• ${sub.paymentMethod.last4}）` : ""}` : C.invoice}{sub.status !== "pending" && C.autoRenewState(sub.autoRenew)}</dd></>}
+          {sub.kind === "paid" && <><dt>{C.payment}</dt><dd>{sub.paymentMode === "card" ? `${C.card}${sub.paymentMethod ? `（${sub.paymentMethod.brand} •••• ${sub.paymentMethod.last4}）` : ""}` : sub.paymentMode === "starpay" ? C.starpay : C.invoice}{sub.status !== "pending" && C.autoRenewState(sub.autoRenew)}</dd></>}
           {sub.scheduledPlan && <><dt>{sub.status === "trialing" ? C.switching : C.nextPeriod}</dt><dd>{sub.scheduledPlan.name}（{priceLabel(sub.scheduledPlan)}）</dd></>}
           {sub.request && <><dt>{C.termsAgreed}</dt><dd>{C.termsVersion(sub.request.termsVersion, formatJst(sub.request.agreedAt, true))}</dd></>}
         </dl>
@@ -147,7 +147,7 @@ export default async function ContractPage({ params, searchParams }: { params: P
         );
       })()}
 
-      {s.isOwner && sub.kind === "paid" && ["active", "cancel_scheduled"].includes(sub.status) && (
+      {s.isOwner && sub.kind === "paid" && sub.paymentMode !== "starpay" && ["active", "cancel_scheduled"].includes(sub.status) && (
         <section style={{ marginTop: 32 }}>
           <h2>{C.autoRenew}</h2>
           <div className="panel stack">

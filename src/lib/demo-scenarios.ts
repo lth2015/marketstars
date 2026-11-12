@@ -53,6 +53,17 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     ],
   },
   {
+    id: "starpay",
+    title: "2b. StarPay の利用料と合算して支払う（合算請求）",
+    summary: "StarPay 加盟店と連携した空間は、有料プランを StarPay の月次請求に合算できます。申込と同時に利用開始・毎月自動更新し、請求は「合算請求待ち」に。運営が月次の合算明細（CSV）を作り、StarPay からの回収を確認すると入金済みになります。",
+    steps: [
+      { title: "ひかり整骨院で 売上インサイトAI を「StarPay の利用料と合算」で申し込む", hint: "ひかり整骨院は加盟店番号 SP20240611 と連携済み。申込後すぐに「利用中」になります。", path: "/apps/sales-insight/apply", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "請求・お支払いで「StarPay合算／合算請求待ち」を確認", hint: "StarPay 連携の状態もここで確認・解除できます（合算で利用中の契約があると解除できません）。", path: "/my/billing", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "運営：合算明細を作成 → CSV → 回収を確認", hint: "回収参照番号（例：SPC-2026-11）を入れて確認すると、顧客側の請求が入金済みに変わります。", path: "/admin/starpay", as: { userId: P.taro, tenantId: T.ops } },
+      { title: "別の空間で StarPay を連携してみる", hint: "みなと美容室の請求・お支払いで SP から始まる10桁を入力（末尾 9 は「存在しない加盟店」になるデモ用番号）。", path: "/my/billing", as: { userId: P.hanako, tenantId: T.minato } },
+    ],
+  },
+  {
     id: "invoice",
     title: "3. 請求書払い → 運営が入金を確認して開始",
     summary: "申し込みは「申込中」のまま。運営が外部の入金証憑番号と金額を入力して確認した時点から1か月の利用期間が始まります。同じ証憑の二重確認はできません。",

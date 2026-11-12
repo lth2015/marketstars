@@ -7,6 +7,7 @@ import { localizedPrice } from "@/lib/text";
 import { addDays, formatJst } from "@/lib/time";
 import { ApplyForm } from "@/components/ApplyForm";
 import { getMessages } from "@/lib/messages";
+import { getLink } from "@/lib/starpay";
 
 export async function generateMetadata() {
   return { title: (await getMessages()).ui.apply.title };
@@ -68,6 +69,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
     return <Shell><div className="alert alert-warn">{A.noTrial}<Link href={`/apps/${slug}/apply`}>{A.choosePlanAgain}</Link></div></Shell>;
   }
   const paid = !isTrial && plan.priceType !== "free";
+  const starpayMerchant = paid && plan.priceType === "monthly" ? (await getLink(s.tenantId))?.merchantId ?? null : null;
   const now = new Date();
 
   return (
@@ -91,7 +93,7 @@ export default async function ApplyPage({ params, searchParams }: { params: Prom
         {isTrial && <div className="alert alert-ok" style={{ margin: 0 }}>{t.noAutoCharge}</div>}
         {plan.externalContractRequired && <div className="alert alert-warn" style={{ margin: 0 }}>{A.externalContract}</div>}
         <ApplyForm appId={app.id} planVersionId={plan.id} expectedPriceJpy={plan.priceJpy} mode={isTrial ? "trial" : "start"} idempotencyKey={randomToken(18)} slug={slug}
-          label={isTrial ? t.cta.trial(plan.trialDays) : paid ? A.submitPaid : t.cta.free} paid={paid} labels={A.form} />
+          label={isTrial ? t.cta.trial(plan.trialDays) : paid ? A.submitPaid : t.cta.free} paid={paid} labels={A.form} starpayLabel={starpayMerchant ? A.payStarpay(starpayMerchant) : null} />
       </div>
     </Shell>
   );

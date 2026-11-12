@@ -13,6 +13,7 @@ import { generatePayouts } from "@/lib/payouts";
 import { invalidateCatalog } from "@/lib/cache";
 import { emitEvent } from "@/lib/events";
 import { operatorUpdateDeletion } from "@/lib/deletion";
+import { buildStatement, settleStatement } from "@/lib/starpay";
 
 /** 通知开发者（提供商所属空间）。 */
 async function emitDeveloperEvent(appId: string, type: string, reason?: string) {
@@ -314,4 +315,23 @@ export async function deletionUpdateAction(fd: FormData) {
     throw e;
   }
   back("/admin/deletions", "msg", "更新しました。");
+}
+
+export async function starpayStatementAction(fd: FormData) {
+  const op = await requireOperator();
+  const kind = str(fd, "op");
+  try {
+    if (kind === "build") {
+      const st = await buildStatement(op, str(fd, "month"));
+      back("/admin/starpay", "msg", `${st.month} の合算明細を作成しました（${st.itemCount} 件・¥${st.totalJpy.toLocaleString()}）。CSV を StarPay の請求システムへ連携してください。`);
+    }
+    if (kind === "settle") {
+      const n = await settleStatement(op, str(fd, "id"), str(fd, "ref"));
+      back("/admin/starpay", "msg", `StarPay からの回収を確認しました。${n} 件の請求を入金済みにしました。`);
+    }
+  } catch (e) {
+    if (e instanceof BizError) back("/admin/starpay", "error", e.message);
+    throw e;
+  }
+  back("/admin/starpay", "error", "不明な操作です。");
 }

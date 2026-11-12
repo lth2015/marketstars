@@ -41,7 +41,7 @@ try {
   });
   await step("X3 axe: operator and developer pages", async () => {
     await login("運営 太郎", "MarketStars 運営（オーナー）", "/admin");
-    await axe(["/admin", "/admin/analytics", "/admin/requests", "/admin/apps", "/admin/deletions"]);
+    await axe(["/admin", "/admin/analytics", "/admin/requests", "/admin/apps", "/admin/deletions", "/admin/starpay"]);
     await login("開発 次郎", "MarketStars Labs（提供会社）（オーナー）", "/developer");
     await axe(["/developer", "/developer/analytics"]);
   });

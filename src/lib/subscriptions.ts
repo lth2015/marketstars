@@ -56,7 +56,7 @@ export type ApplyInput = {
   idempotencyKey: string;
   agreed: boolean;
   contactNote?: string;
-  payment?: "invoice" | "card";
+  payment?: "invoice" | "card" | "starpay";
 };
 
 export async function applyForApp(s: SessionUser, input: ApplyInput) {
@@ -117,10 +117,14 @@ export async function applyForApp(s: SessionUser, input: ApplyInput) {
           currentPeriodStart: kind === "paid" ? null : now,
           currentPeriodEnd: kind === "trial" ? addDays(now, plan.trialDays) : null,
           internalTest,
-          paymentMode: kind === "paid" && input.payment === "card" ? "card" : "invoice",
+          paymentMode: kind === "paid" && (input.payment === "card" || input.payment === "starpay") ? input.payment : "invoice",
           createdBy: s.userId,
         },
       });
+      if (kind === "paid" && input.payment === "starpay") {
+        if (plan.priceType !== "monthly") throw new BizError("contact", "このプランは StarPay 合算に対応していません。");
+        if (!(await tx.starpayLink.findUnique({ where: { tenantId: s.tenantId! } }))) throw new BizError("no_starpay", "この空間は StarPay と連携していません。請求・お支払いで加盟店番号を連携してください。");
+      }
       if (kind === "paid" && input.payment === "card") {
         if (plan.priceType !== "monthly") throw new BizError("contact", "このプランはカード払いに対応していません。");
         await tx.paymentIntent.create({ data: { tenantId: sub.tenantId, subscriptionId: sub.id, purpose: "activate", planVersionId: plan.id, amountJpy: plan.priceJpy, idempotencyKey: `activate:${sub.id}`, createdBy: s.userId } });
@@ -141,8 +145,12 @@ export async function applyForApp(s: SessionUser, input: ApplyInput) {
         await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind, startsAt: now, endsAt: sub.currentPeriodEnd } });
       }
       await audit(tx, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "subscription", objectId: sub.id, action: `apply_${kind}`, toState: status, data: { planVersionId: plan.id, price: plan.priceJpy, payment: input.payment ?? "invoice" } });
-      const evType = kind === "trial" ? "subscription.trial_started" : kind === "free" ? "subscription.activated" : input.payment === "card" ? null : "application.submitted";
+      const evType = kind === "trial" ? "subscription.trial_started" : kind === "free" ? "subscription.activated" : input.payment === "card" || input.payment === "starpay" ? null : "application.submitted";
       if (evType) await emitSubscriptionEvent(tx, evType, sub.id);
+      // StarPay 合算：StarPay の請求に載せるため、申込時点で利用開始（初回の請求は合算請求待ち）
+      if (kind === "paid" && input.payment === "starpay") {
+        return grantPaidPeriod(tx, sub, { start: now, planVersionId: plan.id, planName: plan.name, amountJpy: plan.priceJpy, receiptRef: null, actorId: s.userId, actorType: "user", action: "starpay_activate", autoRenew: true, paymentMode: "starpay", starpay: true });
+      }
       return sub;
     }).then(withIntent);
   } catch (e) {
@@ -228,7 +236,7 @@ type Tx = Prisma.TransactionClient;
 async function grantPaidPeriod(
   tx: Tx,
   sub: Subscription,
-  g: { start: Date; planVersionId: string; planName: string; amountJpy: number; receiptRef: string; actorId: string; actorType: "operator" | "user" | "system"; action: string; note?: string; paymentMethodId?: string | null; autoRenew?: boolean; paymentMode?: string },
+  g: { start: Date; planVersionId: string; planName: string; amountJpy: number; receiptRef: string | null; actorId: string; actorType: "operator" | "user" | "system"; action: string; note?: string; paymentMethodId?: string | null; autoRenew?: boolean; paymentMode?: string; starpay?: boolean },
 ) {
   const end = addOneMonthJst(g.start);
   const fresh = sub.status !== "active" && sub.status !== "cancel_scheduled" && sub.status !== "suspended";
@@ -251,8 +259,11 @@ async function grantPaidPeriod(
     },
   });
   if (r.count === 0) throw new BizError("state", "状態が変更されています。画面を更新してください。");
+  // StarPay 合算：期間は付与し、請求は「合算請求待ち」で記録（StarPay の回収確認で入金済みになる）
   const bill = await tx.billingRecord.create({
-    data: { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "paid", periodStart: g.start, periodEnd: end, receiptRef: g.receiptRef, paidAmountJpy: g.amountJpy, paidAt: new Date(), confirmedBy: g.actorId, note: g.note || null },
+    data: g.starpay
+      ? { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "due", channel: "starpay", periodStart: g.start, periodEnd: end, note: g.note || null }
+      : { tenantId: sub.tenantId, subscriptionId: sub.id, amountJpy: g.amountJpy, status: "paid", periodStart: g.start, periodEnd: end, receiptRef: g.receiptRef, paidAmountJpy: g.amountJpy, paidAt: new Date(), confirmedBy: g.actorId, note: g.note || null },
   });
   await tx.subscriptionPeriod.create({ data: { subscriptionId: sub.id, kind: "paid", startsAt: g.start, endsAt: end, billingRecordId: bill.id } });
   if (sub.status === "pending") await tx.applicationRequest.updateMany({ where: { subscriptionId: sub.id }, data: { decidedBy: g.actorId, decidedAt: new Date() } });
@@ -260,7 +271,7 @@ async function grantPaidPeriod(
   await audit(tx, { actorId: g.actorId, actorType: g.actorType, tenantId: sub.tenantId, objectType: "subscription", objectId: sub.id, action: g.action, fromState: sub.status, toState: after.status, data: { receiptRef: g.receiptRef, amountJpy: g.amountJpy, planVersionId: g.planVersionId, periodStart: g.start.toISOString(), periodEnd: end.toISOString() } });
   const lifecycle = /renew$/.test(g.action) ? "subscription.renewed" : /upgrade$/.test(g.action) ? "subscription.plan_changed" : "subscription.activated";
   await emitSubscriptionEvent(tx, lifecycle, sub.id);
-  await emitSubscriptionEvent(tx, "payment.succeeded", sub.id, { amountJpy: g.amountJpy }, `payment:${g.receiptRef}`);
+  if (!g.starpay) await emitSubscriptionEvent(tx, "payment.succeeded", sub.id, { amountJpy: g.amountJpy }, `payment:${g.receiptRef}`);
   return after;
 }
 
@@ -480,12 +491,34 @@ export async function applyScheduledDowngrades(now = new Date()) {
 }
 
 /** 定时任务：自动续费。期末前 24 小时起扣款，失败最多重试 3 次（间隔 ≥6 小时）；未付则期末按规则到期。 */
+/** StarPay 合算の自動更新：期間を延長し、次の請求を合算請求待ちで記録（冪等：期間終了時刻の条件付き更新と請求の一意制約）。 */
+async function renewStarpay(now: Date) {
+  const due = await prisma.subscription.findMany({
+    where: { status: "active", kind: "paid", autoRenew: true, paymentMode: "starpay", currentPeriodEnd: { lte: new Date(now.getTime() + 86400000), gt: new Date(now.getTime() - 3 * 86400000) } },
+    include: { scheduledPlan: true, plan: true },
+  });
+  let renewed = 0;
+  for (const sub of due) {
+    const plan = sub.scheduledPlan ?? sub.plan;
+    if (plan.priceType !== "monthly") continue;
+    if (!(await prisma.starpayLink.findUnique({ where: { tenantId: sub.tenantId } }))) continue;
+    try {
+      await prisma.$transaction((tx) => grantPaidPeriod(tx, sub, { start: sub.currentPeriodEnd!, planVersionId: plan.id, planName: plan.name, amountJpy: plan.priceJpy, receiptRef: null, actorId: "system", actorType: "system", action: "starpay_renew", starpay: true }));
+      renewed++;
+    } catch (e) {
+      if (e instanceof BizError || isUnique(e)) continue;
+      throw e;
+    }
+  }
+  return renewed;
+}
+
 export async function renewDue(now = new Date()) {
   const due = await prisma.subscription.findMany({
     where: { status: "active", kind: "paid", autoRenew: true, paymentMethodId: { not: null }, currentPeriodEnd: { lte: new Date(now.getTime() + 86400000), gt: new Date(now.getTime() - 3 * 86400000) } },
     include: { paymentMethod: true, scheduledPlan: true, plan: true },
   });
-  const out = { charged: 0, failed: 0, skipped: 0 };
+  const out = { charged: 0, failed: 0, skipped: 0, starpay: await renewStarpay(now) };
   for (const sub of due) {
     const plan = sub.scheduledPlan ?? sub.plan;
     if (plan.priceType !== "monthly" || !sub.paymentMethod?.active) { out.skipped++; continue; }
