@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { applyScheduledDowngrades, expireDue, renewDue } from "./subscriptions";
+import { applyScheduledDowngrades, expireDue, recoverStuckIntents, renewDue } from "./subscriptions";
 import { computeRanking } from "./catalog";
 import { billUsage } from "./usage";
 import { autoPayouts } from "./payouts";
@@ -36,6 +36,8 @@ export async function runEventJobs() {
 export async function runJobs() {
   // 顺序：期末降级 → 自动续费 → 到期处理（未续费成功的才会到期）
   const downgraded = await withLock("downgrade", () => applyScheduledDowngrades());
+  // 中断された決済を先に回復（成功していれば期間が延び、更新の重複課金を防ぐ）
+  const recovered = await withLock("recover", () => recoverStuckIntents());
   const renewed = await withLock("renew", () => renewDue());
   const expired = await withLock("expire", () => expireDue());
   // 月初：上月按量账单 → 供应商结算单（均幂等）
@@ -51,5 +53,5 @@ export async function runJobs() {
   await cleanupRateLimits();
   await prisma.launchTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86400000) } } });
   const dispatch = await runEventJobs();
-  return { downgraded, renewed, expired, usage, payouts, ledger, ranking, dispatch };
+  return { downgraded, recovered, renewed, expired, usage, payouts, ledger, ranking, dispatch };
 }

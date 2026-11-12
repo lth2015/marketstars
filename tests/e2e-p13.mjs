@@ -117,6 +117,28 @@ try {
     assert.deepEqual(codes, [200, 409, 409, 409]);
     assert.equal(sql(`SELECT COUNT(*) FROM UsageEvent WHERE requestId='${id}'`), "1");
   });
+  await step("H6 a card payment interrupted mid-charge (stuck in processing) is recovered by the job without charging twice", async () => {
+    await login("山田 花子", "みなと美容室（オーナー）", "/my/billing");
+    await page.getByText("カードを追加").click();
+    await page.getByLabel("カード番号").fill("4242 4242 4242 4242");
+    await page.getByLabel("有効期限（MM/YY）").fill("12/30");
+    await page.getByLabel("セキュリティコード").fill("123");
+    await page.getByRole("button", { name: "カードを登録" }).click();
+    await see(page.getByRole("status").filter({ hasText: "を登録しました" }));
+    const intentId = await applyCard("sales-insight", "ライト");
+    const pm = sql("SELECT id FROM PaymentMethod WHERE tenantId='demo-tenant-minato' AND active=1 ORDER BY createdAt DESC LIMIT 1");
+    // 課金リクエストの途中でプロセスが落ちた状態を再現
+    sql(`UPDATE PaymentIntent SET status='processing', attempts=1, paymentMethodId='${pm}', updatedAt=DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 20 MINUTE) WHERE id='${intentId}'`);
+    const r = await (await page.request.post(`${BASE}/api/internal/jobs/run`, { headers: { authorization: `Bearer ${process.env.JOB_TOKEN ?? "local-job-token"}` } })).json();
+    assert.equal(r.recovered.settled, 1, JSON.stringify(r.recovered));
+    assert.equal(sql(`SELECT status FROM PaymentIntent WHERE id='${intentId}'`), "succeeded");
+    const subId = sql(`SELECT subscriptionId FROM PaymentIntent WHERE id='${intentId}'`);
+    assert.equal(sql(`SELECT status FROM Subscription WHERE id='${subId}'`), "active");
+    assert.equal(sql(`SELECT COUNT(*) FROM BillingRecord WHERE subscriptionId='${subId}'`), "1");
+    // もう一度ジョブを動かしても何も起きない
+    const r2 = await (await page.request.post(`${BASE}/api/internal/jobs/run`, { headers: { authorization: `Bearer ${process.env.JOB_TOKEN ?? "local-job-token"}` } })).json();
+    assert.equal(r2.recovered.settled, 0);
+  });
 } finally {
   await browser.close();
 }
