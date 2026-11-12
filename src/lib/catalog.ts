@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { normalizeSearch } from "./text";
-import { memo } from "./cache";
+import { invalidateCatalog, memo } from "./cache";
 
 const CATALOG_TTL = Number(process.env.CATALOG_CACHE_SECONDS ?? 15);
 
@@ -157,6 +157,8 @@ export async function computeRanking(now = new Date()) {
     prisma.rankingEntry.deleteMany({}),
     prisma.rankingEntry.createMany({ data: rows.map((r, i) => ({ appId: r.appId, rank: i + 1, count: r.count, computedAt: now })) }),
   ]);
+  // 本进程的目录缓存里还是旧排行：立即清空（其他副本在 TTL 内过期）
+  invalidateCatalog();
   return rows.length;
 }
 
