@@ -37,19 +37,46 @@ async function anthropicChat(r: ChatRequest): Promise<ChatResult> {
 function estimateTokens(s: string) {
   return Math.max(1, Math.ceil([...s].length / 1.5));
 }
+/** 「キー：値」形式の行を読み取る（デモの接入アプリはこの形式でプロンプトを送る）。 */
+function fields(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*([^：:]{1,12})[：:]\s*(.*)$/);
+    if (m) out[m[1].trim()] = m[2].trim();
+  }
+  return out;
+}
+
+/** 用途に合わせた決定的な応答（モデル呼び出しの代わり）。用途は system プロンプトで判定する。 */
+function mockText(system: string, last: string): string {
+  const f = fields(last);
+  if (/クチコミ/.test(system)) {
+    const stars = (f["評価"] ?? "").replace(/[^★]/g, "").length || Number((f["評価"] ?? "").replace(/\D/g, "")) || 5;
+    const store = f["店舗名"] || "当店";
+    const review = f["クチコミ"] ?? "";
+    const wait = /待|遅|時間/.test(review);
+    return stars <= 2
+      ? [`【AI提案】このたびはご来店いただき、また率直なご意見をお寄せいただき、ありがとうございます。`, wait ? "お待たせしてしまい、ご不便をおかけしたことを心よりお詫び申し上げます。" : "ご期待に沿えなかった点があり、申し訳ございません。", "いただいた内容はスタッフ全員で共有し、ご案内の流れを見直してまいります。", `またお越しいただける機会がございましたら、${store}一同、心を込めてお迎えいたします。`].join("\n")
+      : [`【AI提案】あたたかいクチコミをありがとうございます。`, "お楽しみいただけたご様子が伝わり、スタッフ一同大変うれしく思っております。", `次回のご来店も、${store}一同心よりお待ちしております。`].join("\n");
+  }
+  if (/コピー|POP/.test(system)) {
+    const product = f["商品"] || "おすすめ商品";
+    const feats = (f["特徴"] ?? "").split(/[、,]/).map((x) => x.trim()).filter(Boolean);
+    const a = feats[0] ?? "こだわり", b = feats[1] ?? feats[0] ?? "おいしさ";
+    return [`【AI提案】`, `1. ${a}がうれしい、${product}。`, `2. ${b}を、あなたに。本日のおすすめ ${product}`, `3. ひと口で伝わる${a}。${product}、はじめました。`].join("\n");
+  }
+  const topic = last.replace(/\s+/g, " ").slice(0, 40);
+  return [`【AI提案】${topic}`, `・お客様の目線で「${topic.slice(0, 12)}」の魅力を一言で伝えましょう。`, "・数量や期間の限定感を添えると効果的です。", "・最後に来店や購入を後押しする一言を入れましょう。"].join("\n");
+}
+
 async function mockChat(r: ChatRequest): Promise<ChatResult> {
   const last = [...r.messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  const topic = last.replace(/\s+/g, " ").slice(0, 40);
-  const lines = [
-    `【AI提案】${topic}`,
-    `・お客様の目線で「${topic.slice(0, 12)}」の魅力を一言で伝えましょう。`,
-    "・数量や期間の限定感を添えると効果的です。",
-    "・最後に来店や購入を後押しする一言を入れましょう。",
-  ];
-  const text = lines.join("\n").slice(0, r.maxTokens * 2);
+  const text = mockText(r.system ?? "", last).slice(0, r.maxTokens * 2);
   const input = estimateTokens((r.system ?? "") + r.messages.map((m) => m.content).join("\n"));
   return { text, inputTokens: input, outputTokens: estimateTokens(text), model: `${r.model} (mock)`, stopReason: "end_turn" };
 }
+
+export const __test = { mockText };
 
 export async function chat(r: ChatRequest): Promise<ChatResult> {
   return hasAnthropicCredentials() ? anthropicChat(r) : mockChat(r);

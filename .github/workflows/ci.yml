@@ -67,6 +67,7 @@ jobs:
       OPERATOR_SSO_TENANT_ID: demo-ops-tenant
       JOB_TOKEN: local-job-token
       LAUNCH_CLIENT_SECRET_POP_WRITER: local-pop-writer-secret
+      LAUNCH_CLIENT_SECRET_REVIEW_REPLY: local-review-reply-secret
       PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
       WEBHOOK_ALLOW_PRIVATE: "true" # 测试用 Webhook 接收端在 127.0.0.1
       TRUSTED_PROXY_HOPS: "1" # 与生产一致；e2e-p6 用 XFF 模拟客户端 IP
