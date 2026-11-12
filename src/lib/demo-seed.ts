@@ -3,6 +3,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { buildSearchText, derivePricing } from "./catalog";
 import { addOneMonthJst } from "./time";
+import { appMockups } from "./demo-mockups";
 
 const days = (n: number) => new Date(Date.now() - n * 86400000);
 
@@ -63,10 +64,6 @@ function icon(color: string, glyph: string) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="${color}"/><text x="64" y="84" font-size="60" font-family="Noto Sans JP, sans-serif" font-weight="700" fill="#fff" text-anchor="middle">${glyph}</text></svg>`;
   return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
-function shot(color: string, title: string, n: number) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#F7F8FA"/><rect x="0" y="0" width="1280" height="72" fill="${color}"/><text x="40" y="46" font-size="28" fill="#fff" font-family="sans-serif">${title}</text><rect x="40" y="112" width="360" height="640" rx="16" fill="#fff" stroke="#E4E8EF"/><rect x="432" y="112" width="808" height="300" rx="16" fill="#fff" stroke="#E4E8EF"/><rect x="432" y="444" width="808" height="308" rx="16" fill="#fff" stroke="#E4E8EF"/><text x="836" y="280" font-size="40" fill="${color}" text-anchor="middle" font-family="sans-serif">画面イメージ ${n}</text></svg>`;
-  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
-}
 
 /** 清空业务数据并写入演示数据；返回应用数。会删除所有会话（使用者需要重新登录）。 */
 export async function seedDemo(prisma: PrismaClient): Promise<number> {
@@ -103,7 +100,7 @@ export async function seedDemo(prisma: PrismaClient): Promise<number> {
       data: {
         slug: a.slug, status: "published", name: a.name, tagline: a.tagline, tags: a.tags, providerId: providers.get(a.provider)!,
         searchText: buildSearchText({ name: a.name, tagline: a.tagline, tags: a.tags, providerName: a.provider }),
-        iconUrl: icon(a.color, a.glyph), screenshots: [1, 2, 3].map((n) => ({ url: shot(a.color, a.name, n), alt: `${a.name} の画面イメージ ${n}` })),
+        iconUrl: icon(a.color, a.glyph), screenshots: appMockups(a.slug, a.name, a.color),
         overview, launchUrl: a.integrated ? (process.env.APP_BASE_URL ?? "http://localhost:3000") + "/integrations/pop-writer/start" : `https://example.com/apps/${a.slug}`,
         integrationType: a.integrated ? "sso_integrated" : "external", launchClientId: a.integrated ? "pop-writer" : null,
         supportChannels: [{ type: "email", value: "support@example.test" }, { type: "hours", value: "平日 10:00–18:00" }],
