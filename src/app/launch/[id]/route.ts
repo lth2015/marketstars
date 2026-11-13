@@ -6,6 +6,7 @@ import { getSession, randomToken } from "@/lib/session";
 import { isEntitled } from "@/lib/subscriptions";
 import { isSafeLaunchUrl } from "@/lib/text";
 import { audit } from "@/lib/audit";
+import { hostedEntry } from "@/lib/hosting";
 
 /**
  * 打开应用：后端校验当前身份、成员资格（getSession 内复查 SSO）和有效权益。
@@ -18,6 +19,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!s) return NextResponse.redirect(new URL(`/auth/login?returnTo=/my/apps`, config.baseUrl));
   const sub = await prisma.subscription.findFirst({ where: { id, tenantId: s.tenantId ?? "__none__" }, include: { app: true } });
   if (!sub || !isEntitled(sub) || sub.app.suspendedReason) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("現在このアプリを利用する権限がありません。")}`, config.baseUrl));
+  if (sub.app.integrationType === "hosted") {
+    if (!sub.app.hostedBuildId) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("アプリの起動先が設定されていません。")}`, config.baseUrl));
+    await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "subscription", objectId: sub.id, action: "launch" });
+    // MarketStars ホスティング：配信側で毎回、空間の権利を確認する
+    return NextResponse.redirect(new URL(hostedEntry(sub.app.slug), config.baseUrl));
+  }
   const url = sub.app.launchUrl;
   if (!url || !isSafeLaunchUrl(url)) return NextResponse.redirect(new URL(`/my/apps/${id}?error=${encodeURIComponent("アプリの起動先が設定されていません。")}`, config.baseUrl));
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "subscription", objectId: sub.id, action: "launch" });

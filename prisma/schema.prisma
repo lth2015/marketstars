@@ -72,6 +72,7 @@ model App {
   launchUrl        String?   @db.VarChar(1000)
   integrationType  String    @default("external") // sso_integrated | external
   launchClientId   String?   @unique
+  hostedBuildId    String?   // integrationType=hosted：本番に反映中のビルド
   supportChannels  Json?
   privacyUrl       String?   @db.VarChar(1000)
   termsUrl         String?   @db.VarChar(1000)
@@ -750,4 +751,35 @@ model DemoAppReviewDraft {
   createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
+}
+
+/// MarketStars ホスティング（静的サイト）：開発者がアップロードした zip を検証（ビルド）した結果。ファイルは不変、本番切替は App.hostedBuildId。
+model HostedBuild {
+  id         String       @id @default(cuid())
+  appId      String
+  number     Int
+  status     String       // building | ready | failed
+  sha256     String
+  fileCount  Int          @default(0)
+  totalBytes Int          @default(0)
+  log        Json
+  uploadedBy String
+  createdAt  DateTime     @default(now())
+  finishedAt DateTime?
+  files      HostedFile[]
+
+  @@unique([appId, number])
+}
+
+model HostedFile {
+  id          String      @id @default(cuid())
+  buildId     String
+  build       HostedBuild @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  path        String      @db.VarChar(300)
+  contentType String
+  size        Int
+  sha256      String
+  data        Bytes       @db.MediumBlob
+
+  @@unique([buildId, path])
 }

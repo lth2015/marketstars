@@ -24,7 +24,7 @@ export default async function Submissions({ searchParams }: { searchParams: Prom
               <div className="row"><Link className="btn btn-secondary btn-sm" href={`/apps/${a.slug}?preview=1`} target="_blank">プレビュー</Link><Link className="btn btn-ghost btn-sm" href={`/admin/apps/${a.id}`}>詳細編集</Link></div>
             </div>
             <dl className="dl small">
-              <dt>起動 URL</dt><dd>{d?.launchUrl ?? "—"}（{d?.integrationType === "sso_integrated" ? `SSO 接入・client ${d?.launchClientId ?? "未発行"}` : "外部サービス"}）</dd>
+              <dt>起動 URL</dt><dd>{d?.launchUrl ?? "—"}（{d?.integrationType === "sso_integrated" ? `SSO 接入・client ${d?.launchClientId ?? "未発行"}` : d?.integrationType === "hosted" ? "MarketStars ホスティング" : "外部サービス"}）</dd>
               <dt>料金プラン案</dt><dd>{d?.plans?.length ? d.plans.map((p) => `${p.name}${p.retire ? "（終了）" : `：${p.priceType === "monthly" ? `¥${p.priceJpy.toLocaleString()}/月` : p.priceType === "free" ? "無料" : "要問合せ"}${p.trialDays ? `・体験${p.trialDays}日` : ""}`}`).join("、") : a.plans.map((p) => p.name).join("、") || "—"}</dd>
               <dt>規約 / プライバシー</dt><dd>{d?.termsUrl ?? "—"} / {d?.privacyUrl ?? "—"}</dd>
             </dl>

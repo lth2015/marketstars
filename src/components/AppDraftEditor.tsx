@@ -47,8 +47,8 @@ export function AppDraftEditor(props: {
         </div></fieldset>
       ))}
       <div className="grid-2">
-        <Field name="launchUrl" label="アプリ起動 URL（https のみ）" value={d.launchUrl} />
-        <div className="form-row"><label htmlFor="f-integrationType">接続方式</label><select id="f-integrationType" name="integrationType" defaultValue={d.integrationType}><option value="external">外部サービス（別途ログインの可能性あり）</option><option value="sso_integrated">共通 SSO・権益チェック接入済み</option></select></div>
+        <Field name="launchUrl" label="アプリ起動 URL（https のみ・ホスティングの場合は空欄）" value={d.launchUrl} />
+        <div className="form-row"><label htmlFor="f-integrationType">接続方式</label><select id="f-integrationType" name="integrationType" defaultValue={d.integrationType}><option value="external">外部サービス（別途ログインの可能性あり）</option><option value="sso_integrated">共通 SSO・権益チェック接入済み</option><option value="hosted">MarketStars でホスティング（静的サイトの zip をアップロード）</option></select><div className="small muted" style={{ marginTop: 4 }}>ホスティングの場合、起動 URL は不要です（開発者ポータルの「ホスティング」で zip をアップロードし本番に反映）。</div></div>
       </div>
       {props.showClientId ? <Field name="launchClientId" label="接入 client ID" value={d.launchClientId} hint="secret は Secret Manager の LAUNCH_CLIENT_SECRET_<ID> に登録" /> : <p className="small muted">接入 client ID：{d.launchClientId ?? "未発行（SSO 接入を希望する場合は運営が発行します）"}</p>}
       <div className="grid-2">
