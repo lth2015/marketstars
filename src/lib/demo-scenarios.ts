@@ -11,6 +11,7 @@ export const T = {
   minato: "demo-tenant-minato",
   hikari: "demo-tenant-hikari",
   devco: "demo-tenant-devco",
+  labs: "demo-tenant-labs",
   ops: "demo-ops-tenant",
 } as const;
 
@@ -101,6 +102,16 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     steps: [
       { title: "開発者ポータルで登録し、アプリを作成して提出", hint: "開発 次郎（ミライAI合同会社）。", path: "/developer", as: { userId: P.jiro, tenantId: T.devco } },
       { title: "運営：掲載審査で差し戻し／承認", hint: "承認すると公開され、一覧と詳細に表示されます。", path: "/admin/submissions", as: { userId: P.taro, tenantId: T.ops } },
+    ],
+  },
+  {
+    id: "hosting",
+    title: "6b. MarketStars ホスティング：zip をアップロードして公開・ロールバック",
+    summary: "静的サイト（HTML・CSS・JS）の zip をアップロードすると、MarketStars が検証（ビルド）して配信します。画面を開くたびに空間の契約を確認し、アップロードされたコードは MarketStars の Cookie や API に触れない隔離環境（CSP sandbox）で動きます。",
+    steps: [
+      { title: "利用者として「レジ締めチェック」を開く", hint: "山田 花子／ひかり整骨院（無料で利用中）。マイアプリの「アプリを開く」で、MarketStars がホスティングするアプリが開きます。契約のない空間で同じ URL を開くと利用できません。", path: "/my/apps", as: { userId: P.hanako, tenantId: T.hikari } },
+      { title: "提供会社として新しい版をアップロードしてプレビュー", hint: "開発 次郎／MarketStars Labs。「レジ締めチェック」→「ホスティング」で、サンプル zip（v1.1.0）をダウンロードしてアップロード。ビルドのログとプレビューを確認します。", path: "/developer", as: { userId: P.jiro, tenantId: T.labs } },
+      { title: "本番に反映し、問題があれば前の版に戻す", hint: "「本番に反映」で利用者の画面が v1.1.0 に切り替わります。「この版に戻す」で #1 に戻せます。操作はすべて監査ログに残ります。", path: "/developer", as: { userId: P.jiro, tenantId: T.labs } },
     ],
   },
   {

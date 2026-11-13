@@ -38,6 +38,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // 静态资源与上传图片（自带更严格的 CSP）不经过中间件
-  matcher: [{ source: "/((?!_next/static|_next/image|fonts/|favicon.ico|placeholder-icon.svg|api/assets).*)" }],
+  // 静态资源、上传图片、托管应用（各自带更严格的 CSP/sandbox）不经过中间件
+  matcher: [{ source: "/((?!_next/static|_next/image|fonts/|favicon.ico|placeholder-icon.svg|api/assets|hosted/).*)" }],
 };

@@ -4,6 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import { buildSearchText, derivePricing } from "./catalog";
 import { addOneMonthJst } from "./time";
 import { appMockups } from "./demo-mockups";
+import { buildFromZip, sampleZip } from "./hosting";
 
 const days = (n: number) => new Date(Date.now() - n * 86400000);
 
@@ -68,7 +69,7 @@ function icon(color: string, glyph: string) {
 /** 清空业务数据并写入演示数据；返回应用数。会删除所有会话（使用者需要重新登录）。 */
 export async function seedDemo(prisma: PrismaClient): Promise<number> {
   await prisma.$transaction([
-    prisma.demoAppReviewDraft.deleteMany(), prisma.starpayStatement.deleteMany(), prisma.starpayLink.deleteMany(), prisma.deletionRequest.deleteMany(), prisma.rateLimit.deleteMany(), prisma.webhookDelivery.deleteMany(), prisma.webhookEndpoint.deleteMany(), prisma.domainEvent.deleteMany(), prisma.notificationRead.deleteMany(), prisma.notification.deleteMany(), prisma.emailOutbox.deleteMany(), prisma.tenantContact.deleteMany(), prisma.ledgerAnchor.deleteMany(), prisma.ledgerEntry.deleteMany(), prisma.agentTransaction.deleteMany(), prisma.agentMandate.deleteMany(), prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
+    prisma.hostedBuild.deleteMany(), prisma.demoAppReviewDraft.deleteMany(), prisma.starpayStatement.deleteMany(), prisma.starpayLink.deleteMany(), prisma.deletionRequest.deleteMany(), prisma.rateLimit.deleteMany(), prisma.webhookDelivery.deleteMany(), prisma.webhookEndpoint.deleteMany(), prisma.domainEvent.deleteMany(), prisma.notificationRead.deleteMany(), prisma.notification.deleteMany(), prisma.emailOutbox.deleteMany(), prisma.tenantContact.deleteMany(), prisma.ledgerAnchor.deleteMany(), prisma.ledgerEntry.deleteMany(), prisma.agentTransaction.deleteMany(), prisma.agentMandate.deleteMany(), prisma.rankingEntry.deleteMany(), prisma.launchTicket.deleteMany(), prisma.usageEvent.deleteMany(), prisma.payoutStatement.deleteMany(), prisma.asset.deleteMany(), prisma.review.deleteMany(), prisma.paymentIntent.deleteMany(), prisma.subscriptionPeriod.deleteMany(), prisma.billingRecord.deleteMany(),
     prisma.applicationRequest.deleteMany(), prisma.subscription.deleteMany(), prisma.trialUsage.deleteMany(), prisma.inquiry.deleteMany(),
     prisma.contentEntry.deleteMany(), prisma.appRelease.deleteMany(), prisma.planVersion.deleteMany(), prisma.app.deleteMany(),
     prisma.provider.deleteMany(), prisma.category.deleteMany(), prisma.industry.deleteMany(), prisma.integrationTag.deleteMany(),
@@ -120,6 +121,29 @@ export async function seedDemo(prisma: PrismaClient): Promise<number> {
   const draft = await prisma.app.create({ data: { slug: "staff-training", status: "draft", name: "スタッフ研修AI", tagline: "接客マニュアルから、ロールプレイ形式の研修を自動で作成します。", providerId: providers.get("MarketStars Labs")!, searchText: "", overview: { problem: "新人研修の準備時間を短縮します。" }, categories: { connect: [{ slug: "store-ops" }] } } });
   await prisma.planVersion.create({ data: { appId: draft.id, planKey: "standard", name: "スタンダード", priceType: "monthly", priceJpy: 1650, trialDays: 14, includes: "研修シナリオ 月20本", limits: "" } });
 
+  // MarketStars ホスティングのアプリ（静的サイト）：zip から作ったビルド #1 を本番に反映済み
+  {
+    const labs = providers.get("MarketStars Labs")!;
+    const name = "レジ締めチェック", tagline = "金種ごとの枚数を入れるだけで、現金の合計とレジ記録との差額を計算します。", tags = "レジ 締め 現金 ホスティング";
+    const rc = await prisma.app.create({
+      data: {
+        slug: "register-close", status: "published", name, tagline, tags, providerId: labs, searchText: buildSearchText({ name, tagline, tags, providerName: "MarketStars Labs" }),
+        iconUrl: icon("#B45309", "締"), screenshots: appMockups("register-close", name, "#B45309"),
+        overview: { problem: `${tagline} 閉店後のレジ締めを短時間で正確に行えます。`, features: ["金種ごとに入力して自動で合計", "レジ記録との差額をその場で表示", "MarketStars がホスティング（インストール不要）"], prerequisites: "MarketStars アカウントと、利用する空間（店舗）が必要です。", dataNeeds: "入力内容は画面の中だけで計算され、保存・送信されません。", setup: ["MarketStars で無料で利用開始", "「アプリを開く」から起動"], limitations: "現金の計算のみを行います。" },
+        launchUrl: null, integrationType: "hosted", supportChannels: [{ type: "email", value: "support@example.test" }], privacyUrl: "/help/privacy", termsUrl: "/help/terms", version: "1.0.0", recommendWeight: 20,
+        ...derivePricing([{ priceType: "free", priceJpy: 0, trialDays: 0 }]), firstPublishedAt: days(3), contentUpdatedAt: days(1),
+        categories: { connect: [{ slug: "store-ops" }] }, industries: { connect: [{ slug: "retail" }, { slug: "restaurant" }] }, integrationTags: { connect: [{ slug: "standalone" }] },
+      },
+    });
+    await prisma.planVersion.create({ data: { appId: rc.id, planKey: "free", name: "フリー", priceType: "free", priceJpy: 0, trialDays: 0, includes: "すべての機能", limits: "", sortOrder: 0 } });
+    await prisma.appRelease.create({ data: { appId: rc.id, number: 1, snapshot: { name, tagline }, publishedBy: "seed" } });
+    const zip = sampleZip("1.0.0");
+    const r = buildFromZip(zip);
+    const b = await prisma.hostedBuild.create({ data: { appId: rc.id, number: 1, status: "ready", sha256: "seed", fileCount: r.files.length, totalBytes: r.files.reduce((a, f) => a + f.data.length, 0), log: r.log, uploadedBy: "seed", finishedAt: days(3) } });
+    for (const f of r.files) await prisma.hostedFile.create({ data: { buildId: b.id, path: f.path, contentType: f.contentType, size: f.data.length, sha256: "seed", data: f.data } });
+    await prisma.app.update({ where: { id: rc.id }, data: { hostedBuildId: b.id } });
+  }
+
   // 排行演示用合成开通（测试环境专用；内部测试空间不计入）
   const all = await prisma.app.findMany({ where: { status: "published" }, include: { plans: true } });
   const spread: Record<string, number> = { "pop-writer": 9, "review-reply": 7, "sales-insight": 6, "shift-planner": 5, "menu-translator": 4, "faq-bot": 3, "phone-concierge": 2, "event-planner": 2 };
@@ -167,6 +191,11 @@ export async function seedDemo(prisma: PrismaClient): Promise<number> {
   const spPaid = monthly("shift-planner");
   await prisma.trialUsage.create({ data: { tenantId: hikari.tenantId, appId: sp.id, startedAt: days(27) } });
   await prisma.subscription.create({ data: { ...hikari, appId: sp.id, planVersionId: spPaid.id, kind: "trial", status: "trialing", liveKey: `${hikari.tenantId}:${sp.id}`, priceJpySnapshot: 0, planNameSnapshot: spPaid.name, startedAt: days(27), trialEndsAt: new Date(Date.now() + 3 * 86400000), createdBy: "seed" } });
+
+  // ひかり整骨院は MarketStars ホスティングのアプリ（レジ締めチェック）も無料で利用中
+  const rcApp = bySlug.get("register-close")!;
+  const rcFree = rcApp.plans.find((p) => p.priceType === "free")!;
+  await prisma.subscription.create({ data: { ...hikari, appId: rcApp.id, planVersionId: rcFree.id, kind: "free", status: "active", liveKey: `${hikari.tenantId}:${rcApp.id}`, priceJpySnapshot: 0, planNameSnapshot: rcFree.name, startedAt: days(2), createdBy: "seed" } });
 
   // 2) 運営 KPI の推移グラフ用：過去数か月の有料契約と入金（30日より前に開始するので利用開始ランキングには影響しない）
   const history: [string, number][] = [["customer-notes", 5], ["sales-insight", 4], ["review-reply", 4], ["shift-planner", 3], ["customer-notes", 2], ["sales-insight", 2]];

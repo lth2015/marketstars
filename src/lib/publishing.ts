@@ -30,7 +30,7 @@ export function draftFromForm(fd: FormData, fixed: { providerId?: string; launch
     name: str(fd, "name"), tagline: str(fd, "tagline"), tags: str(fd, "tags"), iconUrl: str(fd, "iconUrl") || null,
     screenshots: lines("screenshots").map((l) => { const [url, alt] = l.split("|"); return { url: url.trim(), alt: (alt ?? "").trim() || "スクリーンショット" }; }),
     overview: { problem: str(fd, "problem"), features: lines("features"), prerequisites: str(fd, "prerequisites"), dataNeeds: str(fd, "dataNeeds"), setup: lines("setup"), limitations: str(fd, "limitations") },
-    launchUrl: str(fd, "launchUrl") || null, integrationType: str(fd, "integrationType") === "sso_integrated" ? "sso_integrated" : "external",
+    launchUrl: str(fd, "launchUrl") || null, integrationType: ["sso_integrated", "hosted"].includes(str(fd, "integrationType")) ? str(fd, "integrationType") : "external",
     launchClientId: fixed.launchClientId !== undefined ? fixed.launchClientId : str(fd, "launchClientId") || null,
     supportChannels: [str(fd, "supportEmail") && { type: "email", value: str(fd, "supportEmail") }, str(fd, "supportHours") && { type: "hours", value: str(fd, "supportHours") }].filter(Boolean) as { type: string; value: string }[],
     privacyUrl: str(fd, "privacyUrl") || null, termsUrl: str(fd, "termsUrl") || null, version: str(fd, "version") || null, providerId: fixed.providerId ?? str(fd, "providerId"),
@@ -72,7 +72,8 @@ export function validateDraft(d: AppDraft, currentPlanCount: number): string[] {
   if (d.plans?.some((p) => !/^[a-z0-9-]{1,40}$/.test(p.key))) e.push("プランキー（英小文字・数字）");
   if (!d.supportChannels.length) e.push("サポート方法");
   if (!d.termsUrl || !d.privacyUrl || !okLink(d.termsUrl) || !okLink(d.privacyUrl)) e.push("利用規約・プライバシーポリシーのリンク（https）");
-  if (!d.launchUrl || !isSafeLaunchUrl(d.launchUrl)) e.push("アプリ起動 URL（https）");
+  // MarketStars ホスティングは起動先を自動で決める（本番ビルドの有無は publishApp で確認）
+  if (d.integrationType !== "hosted" && (!d.launchUrl || !isSafeLaunchUrl(d.launchUrl))) e.push("アプリ起動 URL（https）");
   if (d.integrationType === "sso_integrated" && !d.launchClientId) e.push("接入 client ID（運営が発行）");
   return e;
 }
@@ -109,6 +110,7 @@ export async function publishApp(appId: string, actorId: string, action = "publi
     const d = app.draft as unknown as AppDraft | null;
     if (!d) { errors = ["公開する下書き"]; return; }
     errors = validateDraft(d, app.plans.length);
+    if (d.integrationType === "hosted" && !app.hostedBuildId) errors.push("ホスティングの本番ビルド（zip をアップロードして本番に反映）");
     if (errors.length) return;
     const provider = await tx.provider.findUniqueOrThrow({ where: { id: d.providerId } });
     const now = new Date();
@@ -119,7 +121,7 @@ export async function publishApp(appId: string, actorId: string, action = "publi
       where: { id: appId },
       data: {
         name: d.name, tagline: d.tagline, tags: d.tags, iconUrl: d.iconUrl, screenshots: d.screenshots, overview: d.overview,
-        launchUrl: d.launchUrl, integrationType: d.integrationType, launchClientId: d.integrationType === "sso_integrated" ? d.launchClientId : null,
+        launchUrl: d.integrationType === "hosted" ? null : d.launchUrl, integrationType: d.integrationType, launchClientId: d.integrationType === "sso_integrated" ? d.launchClientId : null,
         supportChannels: d.supportChannels, privacyUrl: d.privacyUrl, termsUrl: d.termsUrl, version: d.version, providerId: d.providerId,
         searchText: buildSearchText({ name: d.name, tagline: d.tagline, tags: d.tags, providerName: provider.name }),
         categories: { set: d.categories.map((slug) => ({ slug })) }, industries: { set: d.industries.map((slug) => ({ slug })) }, integrationTags: { set: d.integrations.map((slug) => ({ slug })) },

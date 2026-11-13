@@ -9,6 +9,7 @@ import { draftFromApp, draftFromForm, validateDraft } from "@/lib/publishing";
 import { applyUploads, UploadError } from "@/lib/assets";
 import { deliverOne, validateWebhookUrl } from "@/lib/webhooks";
 import { WEBHOOK_EVENT_TYPES } from "@/lib/events";
+import { createBuild, deployBuild, LIMITS } from "@/lib/hosting";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const go = (path: string, kind: "msg" | "error", text: string): never => redirect(`${path}?${kind}=${encodeURIComponent(text)}`);
@@ -159,4 +160,28 @@ export async function webhookAction(fd: FormData) {
   }
   await audit(prisma, { actorId: s.userId, actorType: "user", tenantId: s.tenantId, objectType: "webhook_endpoint", objectId: e!.id, action: op });
   redirect(back);
+}
+
+/** MarketStars ホスティング：zip アップロード（ビルド）・本番反映・ロールバック。 */
+export async function hostingAction(fd: FormData) {
+  const s = await owner();
+  const appId = str(fd, "appId");
+  const app = await developerApp(s, appId);
+  if (!app) go("/developer", "error", "アプリが見つかりません。");
+  const back = `/developer/apps/${appId}`;
+  const op = str(fd, "op");
+  if (op === "upload") {
+    const f = fd.get("zip");
+    if (!(f instanceof File) || f.size === 0) go(back, "error", "zip ファイルを選んでください。");
+    if ((f as File).size > LIMITS.zipBytes) go(back, "error", "zip が大きすぎます（上限 5MB）。");
+    const b = await createBuild(appId, new Uint8Array(await (f as File).arrayBuffer()), s.userId, { autoDeploy: fd.get("autoDeploy") === "on" });
+    if (b.status !== "ready") go(back, "error", `ビルド #${b.number} に失敗しました。ログを確認してください。`);
+    go(back, "msg", fd.get("autoDeploy") === "on" ? `ビルド #${b.number} に成功し、本番に反映しました。` : `ビルド #${b.number} に成功しました。プレビューで確認してから本番に反映してください。`);
+  }
+  if (op === "deploy") {
+    const ok = await deployBuild(appId, str(fd, "buildId"), s.userId, fd.get("rollback") === "1" ? "rollback" : "deploy");
+    if (!ok) go(back, "error", "このビルドは本番に反映できません。");
+    go(back, "msg", "本番に反映しました。");
+  }
+  go(back, "error", "不明な操作です。");
 }
