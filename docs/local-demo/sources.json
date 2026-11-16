@@ -1,0 +1,12 @@
+{
+  "marketstars": {
+    "url": "https://github.com/lth2015/marketstars.git",
+    "ref": "main",
+    "commit": "5530d679f0b25ededce76aeccc9df50baf125034"
+  },
+  "sso": {
+    "url": "https://github.com/lth2015/sso.git",
+    "ref": "master",
+    "commit": "2f36359b410d4178eec9ce79e3aa14f71fb71f69"
+  }
+}

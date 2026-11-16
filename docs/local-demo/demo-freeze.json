@@ -1,0 +1,35 @@
+{
+  "demo_at": "2026-11-17T11:00:00+09:00",
+  "frozen_at": "2026-11-16T08:14:38.710244+00:00",
+  "sources": {
+    "marketstars": {
+      "url": "https://github.com/lth2015/marketstars.git",
+      "ref": "main",
+      "commit": "5530d679f0b25ededce76aeccc9df50baf125034"
+    },
+    "sso": {
+      "url": "https://github.com/lth2015/sso.git",
+      "ref": "master",
+      "commit": "2f36359b410d4178eec9ce79e3aa14f71fb71f69"
+    }
+  },
+  "checks": [
+    "SSO password + TOTP + primary-space console",
+    "Public catalog with 13 published demo applications",
+    "Real OAuth + PKCE callback returns to the requested app",
+    "HttpOnly market session; browser storage has no JWT",
+    "Free app subscription through UI, owned by the actual SSO user",
+    "One-time launch exchange and local POP copy generation",
+    "Second integrated app: trial, launch, three drafts, local model gateway and tenant history",
+    "Hosted static app: subscribed launch, cash calculation and sandbox isolation",
+    "Operator console and developer provider tied to the primary space",
+    "Space switch isolates subscriptions and rejects a cross-space record URL",
+    "Operator access is denied outside its configured SSO space",
+    "Market-only logout preserves the SSO console session",
+    "Non-owner can see shared apps and cannot subscribe or enter operator pages",
+    "No browser JavaScript errors",
+    "Market and integrated apps work with non-local browser requests blocked"
+  ],
+  "rehearsal_at": "2026-11-16T08:10:52.373Z",
+  "supervise_until": "2026-11-17T12:00:00+09:00"
+}
