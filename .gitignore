@@ -8,3 +8,6 @@ next-env.d.ts
 coverage/
 .env.local-sso
 public/fonts/
+
+# 本地导出的演示文件（不入库）
+exports/
